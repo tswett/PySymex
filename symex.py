@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from multiprocessing.sharedctypes import Value
 from typing import List, Optional
 
 class Symex:
@@ -51,7 +50,7 @@ class SymexParser():
         if self.is_atom_char(self.next_char):
             return self.parse_atom_with_tail()
 
-        raise ValueError("failed to find a recognizable character")
+        raise ValueError('failed to find a recognizable character')
 
     def parse_atom_with_tail(self) -> SAtom:
         self.consume_whitespace()
@@ -63,7 +62,7 @@ class SymexParser():
             self.next_index += 1
 
         if result_str == '':
-            raise ValueError("failed to find an atom character")
+            raise ValueError('failed to find an atom character')
         else:
             return SAtom(result_str)
 
@@ -77,7 +76,7 @@ class SymexParser():
         if self.next_char == '(':
             self.next_index += 1
         else:
-            raise ValueError("failed to find an opening parenthesis")
+            raise ValueError('failed to find an opening parenthesis')
 
         result_list = []
 
@@ -92,7 +91,7 @@ class SymexParser():
             self.next_index += 1
             return SList(result_list)
         else:
-            raise ValueError("failed to find a closing parenthesis")
+            raise ValueError('failed to find a closing parenthesis')
 
     def consume_whitespace(self) -> None:
         while ((next_char := self.next_char) is not None and
