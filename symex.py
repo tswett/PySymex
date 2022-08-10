@@ -1,23 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterator, List, Optional
+from typing import Iterable, Iterator, Optional, overload, Union
 
 class Symex:
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Symex):
-            return False
-
-        if isinstance(self, SList) and isinstance(other, SList):
-            if len(self) != len(other):
-                return False
-            return all([x == y for x, y in zip(self, other)])
-
-        if isinstance(self, SAtom) and isinstance(other, SAtom):
-            return self.text == other.text
-
-        return False
-
     @staticmethod
     def rep(input: str) -> str:
         return str(Symex.parse(input).eval())
@@ -26,13 +12,32 @@ class Symex:
     def parse(text: str) -> Symex:
         return SymexParser.parse(text)
 
+    @property
+    def is_list(self) -> bool:
+        raise NotImplementedError()
+
+    @property
+    def as_list(self) -> SList:
+        raise NotImplementedError()
+
+    @property
+    def is_atom(self) -> bool:
+        return not self.is_list
+
+    @property
+    def as_atom(self) -> SAtom:
+        raise NotImplementedError()
+
     def eval(self) -> Symex:
         return self.eval_in(Environment([]))
 
     def eval_in(self, env: Environment) -> Symex:
         raise NotImplementedError()
 
-@dataclass(eq=False, frozen=True)
+    def apply(self, args: Iterable[Symex]) -> Symex:
+        return Function.from_symex(self).apply(args)
+
+@dataclass(frozen=True)
 class SAtom(Symex):
     text: str
 
@@ -43,15 +48,37 @@ class SAtom(Symex):
     def is_list(self) -> bool:
         return False
 
+    @property
+    def as_list(self) -> SList:
+        raise ValueError("this is an atom, not a list")
+
+    @property
+    def as_atom(self) -> SAtom:
+        return self
+
     def eval_in(self, env: Environment) -> Symex:
         if len(self.text) >= 1 and self.text[0] == ':':
             return self
         else:
             raise NotImplementedError("don't know how to evaluate this atom")
 
-@dataclass(eq=False, frozen=True)
+@dataclass(frozen=True)
 class SList(Symex):
-    items: List[Symex]
+    items: list[Symex]
+
+    @overload
+    def __getitem__(self, key: slice) -> SList:
+        raise NotImplementedError()
+
+    @overload
+    def __getitem__(self, key: int) -> Symex:
+        raise NotImplementedError()
+
+    def __getitem__(self, key: Union[int, slice]) -> Symex:
+        if isinstance(key, slice):
+            return SList(self.items[key])
+        else:
+            return self.items[key]
 
     def __iter__(self) -> Iterator[Symex]:
         return iter(self.items)
@@ -66,8 +93,97 @@ class SList(Symex):
     def is_list(self) -> bool:
         return True
 
-class Environment(SList):
-    pass
+    @property
+    def as_list(self) -> SList:
+        return self
+
+    @property
+    def as_atom(self) -> SAtom:
+        raise ValueError("this is a list, not an atom")
+
+    def eval_in(self, env: Environment) -> Symex:
+        if len(self) == 0:
+            raise ValueError("tried to evaluate an empty list")
+        elif self[0] == SAtom('Quote'):
+            return self[1:]
+        elif self[0] == SAtom('Lambda'):
+            args, body = self[1:]
+            if not args.is_list:
+                raise ValueError('argument list should be a list')
+            return Closure(args.as_list, body, env).to_symex()
+        else:
+            values = [exp.eval_in(env) for exp in self]
+            func, args = values[0], values[1:]
+            return func.apply(args)
+
+@dataclass(frozen=True)
+class Environment():
+    bindings: list[Binding]
+
+    def to_symex(self) -> SList:
+        return SList([binding.to_symex() for binding in self.bindings])
+
+    @staticmethod
+    def from_symex(symex: Symex) -> Environment:
+        if symex.is_atom:
+            raise ValueError('tried to treat an atom as an environment')
+
+        return Environment([Binding.from_symex(binding) for binding in symex.as_list])
+
+@dataclass(frozen=True)
+class Binding():
+    name: SAtom
+    value: Symex
+
+    def to_symex(self) -> SList:
+        return SList([self.name, self.value])
+
+    @staticmethod
+    def from_symex(symex: Symex) -> Binding:
+        if symex.is_atom:
+            raise ValueError('tried to treat an atom as a binding')
+
+        name, value = symex.as_list
+
+        return Binding(name.as_atom, value)
+
+class Function():
+    @staticmethod
+    def from_symex(symex: Symex) -> Function:
+        if symex.is_atom:
+            raise ValueError('tried to treat an atom as a function')
+
+        symex = symex.as_list
+
+        if symex[0] == SAtom(':closure'):
+            return Closure.from_symex(symex)
+
+        print(f"the problematic symex is: {str(symex)}")
+        raise ValueError('not a recognizable function')
+
+    def apply(self, args: Iterable[Symex]) -> Symex:
+        raise NotImplementedError()
+
+@dataclass(frozen=True)
+class Closure(Function):
+    args: SList
+    body: Symex
+    env: Environment
+
+    def to_symex(self) -> SList:
+        return SList([SAtom(':closure'), self.args, self.body, self.env.to_symex()])
+
+    @staticmethod
+    def from_symex(symex: Symex) -> Closure:
+        if symex.is_atom:
+            raise ValueError('tried to treat an atom as a closure')
+
+        tag, args, body, env = symex.as_list
+
+        if tag != SAtom(':closure'):
+            raise ValueError("this list isn't a closure")
+
+        return Closure(args.as_list, body, Environment.from_symex(env))
 
 class SymexParser():
     def __init__(self, text: str):
