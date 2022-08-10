@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from typing import ClassVar, Iterator, Optional, overload, Union
 
 class Symex:
+    def __bool__(self) -> bool:
+        raise NotImplementedError()
+
     @staticmethod
     def rep(input: str) -> str:
         return str(Symex.parse(input).eval())
@@ -52,6 +55,9 @@ class Symex:
 class SAtom(Symex):
     text: str
 
+    def __bool__(self) -> bool:
+        return self.text != ':false'
+
     def __str__(self) -> str:
         return self.text
 
@@ -78,6 +84,9 @@ class SAtom(Symex):
 @dataclass(frozen=True)
 class SList(Symex):
     items: list[Symex]
+
+    def __bool__(self) -> bool:
+        return True
 
     @overload
     def __getitem__(self, key: slice) -> SList:
@@ -112,13 +121,15 @@ class SList(Symex):
 
     @property
     def as_atom(self) -> SAtom:
-        raise ValueError("this is a list, not an atom")
+        raise ValueError('this is a list, not an atom')
 
     def eval_in(self, env: Environment) -> Symex:
         if len(self) == 0:
-            raise ValueError("tried to evaluate an empty list")
+            raise ValueError('tried to evaluate an empty list')
+
         elif self[0] == SAtom('Quote'):
             return self[1:]
+
         elif self[0] == SAtom('Lambda'):
             params, body = self[1:]
             if not params.is_list:
@@ -126,6 +137,25 @@ class SList(Symex):
             params_atoms = [param.as_atom for param in params.as_list]
 
             return Closure(params_atoms, body, env).to_symex()
+
+        elif self[0] == SAtom('And'):
+            result: Symex = SAtom(':true')
+            for exp in self[1:]:
+                result = exp.eval_in(env)
+                if not result:
+                    return result
+
+            return result
+
+        elif self[0] == SAtom('Or'):
+            result = SAtom(':false')
+            for exp in self[1:]:
+                result = exp.eval_in(env)
+                if result:
+                    return result
+
+            return result
+
         else:
             values = [exp.eval_in(env) for exp in self]
             func, args = values[0], values[1:]
