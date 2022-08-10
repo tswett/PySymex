@@ -10,8 +10,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Iterable, Iterator, Optional, overload, Union
+from typing import ClassVar, Iterator, Optional, overload, Union
 
 class Symex:
     @staticmethod
@@ -39,7 +40,7 @@ class Symex:
         raise NotImplementedError()
 
     def eval(self) -> Symex:
-        return self.eval_in(Environment([]))
+        return self.eval_in(Primitive.env)
 
     def eval_in(self, env: Environment) -> Symex:
         raise NotImplementedError()
@@ -188,8 +189,10 @@ class Function():
 
         if symex[0] == SAtom(':closure'):
             return Closure.from_symex(symex)
-
-        raise ValueError('not a recognizable function')
+        elif symex[0] == SAtom(':primitive'):
+            return Primitive.from_symex(symex)
+        else:
+            raise ValueError('not a recognizable function')
 
     def apply(self, args: list[Symex]) -> Symex:
         raise NotImplementedError()
@@ -229,6 +232,63 @@ class Closure(Function):
                                         in zip(self.params, args)])
 
         return self.body.eval_in(new_env)
+
+SFunction = Callable[[list[Symex]], Symex]
+
+primitive_dict: dict[str, SFunction] = {}
+primitive_env: Environment = Environment([])
+
+@dataclass(frozen=True)
+class Primitive(Function):
+    name: SAtom
+
+    @staticmethod
+    def primitive_func(func: SFunction) -> SFunction:
+        name = func.__name__
+        new_binding = Binding(SAtom(name), SList([SAtom(':primitive'), SAtom(name)]))
+
+        primitive_dict[name] = func
+        global primitive_env
+        primitive_env = Environment(primitive_env.bindings + [new_binding])
+
+        return func
+
+    def to_symex(self) -> SList:
+        return SList([SAtom(':primitive'), self.name])
+
+    @staticmethod
+    def from_symex(symex: Symex) -> Primitive:
+        if symex.is_atom:
+            raise ValueError('tried to treat an atom as a primitive function')
+        
+        tag, name = symex.as_list
+
+        if tag != SAtom(':primitive'):
+            raise ValueError("this list isn't a primitive function")
+
+        return Primitive(name.as_atom)
+
+    @property
+    def func(self) -> SFunction:
+        return self.dict[self.name.text]
+
+    @primitive_func
+    @staticmethod
+    def Not(args: list[Symex]) -> Symex:
+        x, = args
+        if x == SAtom(':false'):
+            return SAtom(':true')
+        else:
+            return SAtom(':false')
+
+    def apply(self, args: list[Symex]) -> Symex:
+        return self.func(args)
+
+    dict: ClassVar[dict[str, SFunction]] = primitive_dict
+    env: ClassVar[Environment] = primitive_env
+
+del primitive_dict
+del primitive_env
 
 class SymexParser():
     def __init__(self, text: str):
