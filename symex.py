@@ -34,7 +34,7 @@ class Symex:
     def eval_in(self, env: Environment) -> Symex:
         raise NotImplementedError()
 
-    def apply(self, args: Iterable[Symex]) -> Symex:
+    def apply(self, args: list[Symex]) -> Symex:
         return Function.from_symex(self).apply(args)
 
 @dataclass(frozen=True)
@@ -59,6 +59,8 @@ class SAtom(Symex):
     def eval_in(self, env: Environment) -> Symex:
         if len(self.text) >= 1 and self.text[0] == ':':
             return self
+        elif self in env:
+            return env[self]
         else:
             raise NotImplementedError("don't know how to evaluate this atom")
 
@@ -107,10 +109,12 @@ class SList(Symex):
         elif self[0] == SAtom('Quote'):
             return self[1:]
         elif self[0] == SAtom('Lambda'):
-            args, body = self[1:]
-            if not args.is_list:
+            params, body = self[1:]
+            if not params.is_list:
                 raise ValueError('argument list should be a list')
-            return Closure(args.as_list, body, env).to_symex()
+            params_atoms = [param.as_atom for param in params.as_list]
+
+            return Closure(params_atoms, body, env).to_symex()
         else:
             values = [exp.eval_in(env) for exp in self]
             func, args = values[0], values[1:]
@@ -119,6 +123,20 @@ class SList(Symex):
 @dataclass(frozen=True)
 class Environment():
     bindings: list[Binding]
+
+    def __contains__(self, name: SAtom) -> bool:
+        for binding in self.bindings:
+            if binding.name == name:
+                return True
+
+        return False
+
+    def __getitem__(self, name: SAtom) -> Symex:
+        for binding in self.bindings:
+            if binding.name == name:
+                return binding.value
+
+        raise ValueError('the given name is not in this environment')
 
     def to_symex(self) -> SList:
         return SList([binding.to_symex() for binding in self.bindings])
@@ -129,6 +147,9 @@ class Environment():
             raise ValueError('tried to treat an atom as an environment')
 
         return Environment([Binding.from_symex(binding) for binding in symex.as_list])
+
+    def extend_with(self, new_bindings: list[Binding]) -> Environment:
+        return Environment(new_bindings + self.bindings)
 
 @dataclass(frozen=True)
 class Binding():
@@ -158,32 +179,46 @@ class Function():
         if symex[0] == SAtom(':closure'):
             return Closure.from_symex(symex)
 
-        print(f"the problematic symex is: {str(symex)}")
         raise ValueError('not a recognizable function')
 
-    def apply(self, args: Iterable[Symex]) -> Symex:
+    def apply(self, args: list[Symex]) -> Symex:
         raise NotImplementedError()
 
 @dataclass(frozen=True)
 class Closure(Function):
-    args: SList
+    params: list[SAtom]
     body: Symex
     env: Environment
 
     def to_symex(self) -> SList:
-        return SList([SAtom(':closure'), self.args, self.body, self.env.to_symex()])
+        return SList([SAtom(':closure'),
+                      SList(list(self.params)),
+                      self.body,
+                      self.env.to_symex()])
 
     @staticmethod
     def from_symex(symex: Symex) -> Closure:
         if symex.is_atom:
             raise ValueError('tried to treat an atom as a closure')
 
-        tag, args, body, env = symex.as_list
+        tag, params, body, env = symex.as_list
 
         if tag != SAtom(':closure'):
             raise ValueError("this list isn't a closure")
 
-        return Closure(args.as_list, body, Environment.from_symex(env))
+        params_atoms = [param.as_atom for param in params.as_list]
+
+        return Closure(params_atoms, body, Environment.from_symex(env))
+
+    def apply(self, args: list[Symex]) -> Symex:
+        if len(args) != len(self.params):
+            raise ValueError('closure got wrong number of arguments')
+
+        new_env = self.env.extend_with([Binding(param, arg)
+                                        for param, arg
+                                        in zip(self.params, args)])
+
+        return self.body.eval_in(new_env)
 
 class SymexParser():
     def __init__(self, text: str):
