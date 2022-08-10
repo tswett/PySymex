@@ -127,7 +127,7 @@ class SList(Symex):
         if len(self) == 0:
             raise ValueError('tried to evaluate an empty list')
         elif self[0].is_atom and (name := self[0].as_atom.text) in BuiltinForms.dict:
-            return BuiltinForms.dict[name](self, env)
+            return BuiltinForms.dict[name](self[1:], env)
         else:
             values = [exp.eval_in(env) for exp in self]
             func, args = values[0], values[1:]
@@ -181,7 +181,7 @@ class Binding():
 
         return Binding(name.as_atom, value)
 
-SBuiltin = Callable[[Symex, Environment], Symex]
+SBuiltin = Callable[[SList, Environment], Symex]
 
 _builtin_form_dict: dict[str, SBuiltin] = {}
 
@@ -200,13 +200,13 @@ class BuiltinForms():
 
     @staticmethod
     @builtin_form()
-    def Quote(expr: Symex, env: Environment) -> Symex:
-        return expr.as_list[1:]
+    def Quote(arg_exprs: SList, env: Environment) -> Symex:
+        return arg_exprs
 
     @staticmethod
     @builtin_form()
-    def Lambda(expr: Symex, env: Environment) -> Symex:
-        params, body = expr.as_list[1:]
+    def Lambda(arg_exprs: SList, env: Environment) -> Symex:
+        params, body = arg_exprs
         if not params.is_list:
             raise ValueError('argument list should be a list')
         params_atoms = [param.as_atom for param in params.as_list]
@@ -215,9 +215,9 @@ class BuiltinForms():
 
     @staticmethod
     @builtin_form()
-    def And(expr: Symex, env: Environment) -> Symex:
+    def And(arg_exprs: SList, env: Environment) -> Symex:
         result: Symex = SAtom(':true')
-        for exp in expr.as_list[1:]:
+        for exp in arg_exprs:
             result = exp.eval_in(env)
             if not result:
                 return result
@@ -226,9 +226,9 @@ class BuiltinForms():
 
     @staticmethod
     @builtin_form()
-    def Or(expr: Symex, env: Environment) -> Symex:
+    def Or(arg_exprs: SList, env: Environment) -> Symex:
         result: Symex = SAtom(':false')
-        for exp in expr.as_list[1:]:
+        for exp in arg_exprs:
             result = exp.eval_in(env)
             if result:
                 return result
@@ -237,14 +237,25 @@ class BuiltinForms():
 
     @staticmethod
     @builtin_form()
-    def Cond(expr: Symex, env: Environment) -> Symex:
-        pairs = expr.as_list[1:]
-        for pair in pairs:
+    def Cond(arg_exprs: SList, env: Environment) -> Symex:
+        for pair in arg_exprs:
             condition, action = pair.as_list
             if condition.eval_in(env):
                 return action.eval_in(env)
 
         raise ValueError('none of the conditions were true')
+
+    @staticmethod
+    @builtin_form()
+    def Where(arg_exprs: SList, env: Environment) -> Symex:
+        body, *bindings = arg_exprs
+
+        for binding in bindings:
+            name, value_expr = binding.as_list
+            result = value_expr.eval_in(env)
+            env = env.extend_with([Binding(name.as_atom, result)])
+
+        return body.eval_in(env)
 
     dict: ClassVar[dict[str, SBuiltin]] = _builtin_form_dict
 
@@ -345,6 +356,9 @@ class Primitive(Function):
     def func(self) -> SFunction:
         return self.dict[self.name.text]
 
+    def apply(self, args: list[Symex]) -> Symex:
+        return self.func(args)
+
     @staticmethod
     @primitive_func()
     def Not(args: list[Symex]) -> Symex:
@@ -366,8 +380,28 @@ class Primitive(Function):
 
         return SAtom(':true')
 
-    def apply(self, args: list[Symex]) -> Symex:
-        return self.func(args)
+    @staticmethod
+    @primitive_func()
+    def Cons(args: list[Symex]) -> Symex:
+        head, tail = args
+        return SList([head] + tail.as_list.items)
+
+    @staticmethod
+    @primitive_func()
+    def Head(args: list[Symex]) -> Symex:
+        list, = args
+        return list.as_list[0]
+
+    @staticmethod
+    @primitive_func()
+    def Tail(args: list[Symex]) -> Symex:
+        list, = args
+        return list.as_list[1:]
+
+    @staticmethod
+    @primitive_func()
+    def List(args: list[Symex]) -> Symex:
+        return SList(args)
 
     dict: ClassVar[dict[str, SFunction]] = _primitive_dict
     env: ClassVar[Environment] = _primitive_env
