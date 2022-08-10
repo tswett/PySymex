@@ -235,6 +235,17 @@ class BuiltinForms():
 
         return result
 
+    @staticmethod
+    @builtin_form()
+    def Cond(expr: Symex, env: Environment) -> Symex:
+        pairs = expr.as_list[1:]
+        for pair in pairs:
+            condition, action = pair.as_list
+            if condition.eval_in(env):
+                return action.eval_in(env)
+
+        raise ValueError('none of the conditions were true')
+
     dict: ClassVar[dict[str, SBuiltin]] = _builtin_form_dict
 
 del _builtin_form_dict
@@ -303,15 +314,17 @@ class Primitive(Function):
     name: SAtom
 
     @staticmethod
-    def primitive_func(func: SFunction) -> SFunction:
-        name = func.__name__
-        new_binding = Binding(SAtom(name), SList([SAtom(':primitive'), SAtom(name)]))
+    def primitive_func(name: Optional[str] = None) -> Callable[[SFunction], SFunction]:
+        def decorator(func: SFunction) -> SFunction:
+            name_ = name or func.__name__
+            new_binding = Binding(SAtom(name_), SList([SAtom(':primitive'), SAtom(name_)]))
 
-        _primitive_dict[name] = func
-        global _primitive_env
-        _primitive_env = Environment(_primitive_env.bindings + [new_binding])
+            _primitive_dict[name_] = func
+            global _primitive_env
+            _primitive_env = Environment(_primitive_env.bindings + [new_binding])
 
-        return func
+            return func
+        return decorator
 
     def to_symex(self) -> SList:
         return SList([SAtom(':primitive'), self.name])
@@ -332,14 +345,26 @@ class Primitive(Function):
     def func(self) -> SFunction:
         return self.dict[self.name.text]
 
-    @primitive_func
     @staticmethod
+    @primitive_func()
     def Not(args: list[Symex]) -> Symex:
         x, = args
         if x == SAtom(':false'):
             return SAtom(':true')
         else:
             return SAtom(':false')
+
+    @staticmethod
+    @primitive_func('=')
+    def Equal(args: list[Symex]) -> Symex:
+        if len(args) == 0:
+            return SAtom(':true')
+
+        for other in args[1:]:
+            if args[0] != other:
+                return SAtom(':false')
+
+        return SAtom(':true')
 
     def apply(self, args: list[Symex]) -> Symex:
         return self.func(args)
@@ -396,7 +421,7 @@ class SymexParser():
 
     @staticmethod
     def is_atom_char(char: str) -> bool:
-        return char.isalnum() or char in "_-:?"
+        return char.isalnum() or char in "*+-./:<=>?_"
 
     def parse_list_with_tail(self) -> SList:
         self.consume_whitespace()
