@@ -201,7 +201,8 @@ class BuiltinForms():
     @staticmethod
     @builtin_form()
     def Quote(arg_exprs: SList, env: Environment) -> Symex:
-        return arg_exprs
+        expr, = arg_exprs
+        return expr
 
     @staticmethod
     @builtin_form()
