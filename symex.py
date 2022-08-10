@@ -1,26 +1,73 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Iterator, List, Optional
 
 class Symex:
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Symex):
+            return False
+
+        if isinstance(self, SList) and isinstance(other, SList):
+            if len(self) != len(other):
+                return False
+            return all([x == y for x, y in zip(self, other)])
+
+        if isinstance(self, SAtom) and isinstance(other, SAtom):
+            return self.text == other.text
+
+        return False
+
+    @staticmethod
+    def rep(input: str) -> str:
+        return str(Symex.parse(input).eval())
+
     @staticmethod
     def parse(text: str) -> Symex:
         return SymexParser.parse(text)
 
-@dataclass(frozen=True)
+    def eval(self) -> Symex:
+        return self.eval_in(Environment([]))
+
+    def eval_in(self, env: Environment) -> Symex:
+        raise NotImplementedError()
+
+@dataclass(eq=False, frozen=True)
 class SAtom(Symex):
     text: str
 
     def __str__(self) -> str:
         return self.text
 
-@dataclass(frozen=True)
+    @property
+    def is_list(self) -> bool:
+        return False
+
+    def eval_in(self, env: Environment) -> Symex:
+        if len(self.text) >= 1 and self.text[0] == ':':
+            return self
+        else:
+            raise NotImplementedError("don't know how to evaluate this atom")
+
+@dataclass(eq=False, frozen=True)
 class SList(Symex):
     items: List[Symex]
 
+    def __iter__(self) -> Iterator[Symex]:
+        return iter(self.items)
+
+    def __len__(self) -> int:
+        return len(self.items)
+
     def __str__(self) -> str:
         return '(' + ' '.join([str(item) for item in self.items]) + ')'
+
+    @property
+    def is_list(self) -> bool:
+        return True
+
+class Environment(SList):
+    pass
 
 class SymexParser():
     def __init__(self, text: str):
@@ -33,7 +80,7 @@ class SymexParser():
         result = parser.parse_with_tail()
         parser.consume_whitespace()
 
-        if parser.next_char == None:
+        if parser.next_char is None:
             return result
         else:
             raise ValueError('extra text was present after the end of the expression')
