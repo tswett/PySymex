@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import ClassVar, Iterator, Optional, overload, Union
+from typing import ClassVar, Iterator, NoReturn, Optional, overload, Union
 
 class Symex:
     def __bool__(self) -> bool:
@@ -126,36 +126,8 @@ class SList(Symex):
     def eval_in(self, env: Environment) -> Symex:
         if len(self) == 0:
             raise ValueError('tried to evaluate an empty list')
-
-        elif self[0] == SAtom('Quote'):
-            return self[1:]
-
-        elif self[0] == SAtom('Lambda'):
-            params, body = self[1:]
-            if not params.is_list:
-                raise ValueError('argument list should be a list')
-            params_atoms = [param.as_atom for param in params.as_list]
-
-            return Closure(params_atoms, body, env).to_symex()
-
-        elif self[0] == SAtom('And'):
-            result: Symex = SAtom(':true')
-            for exp in self[1:]:
-                result = exp.eval_in(env)
-                if not result:
-                    return result
-
-            return result
-
-        elif self[0] == SAtom('Or'):
-            result = SAtom(':false')
-            for exp in self[1:]:
-                result = exp.eval_in(env)
-                if result:
-                    return result
-
-            return result
-
+        elif self[0].is_atom and (name := self[0].as_atom.text) in BuiltinForms.dict:
+            return BuiltinForms.dict[name](self, env)
         else:
             values = [exp.eval_in(env) for exp in self]
             func, args = values[0], values[1:]
@@ -208,6 +180,64 @@ class Binding():
         name, value = symex.as_list
 
         return Binding(name.as_atom, value)
+
+SBuiltin = Callable[[Symex, Environment], Symex]
+
+_builtin_form_dict: dict[str, SBuiltin] = {}
+
+class BuiltinForms():
+    def __init__(self) -> None:
+        raise ValueError("the BuiltinForms class can't be instantiated")
+
+    @staticmethod
+    def builtin_form(name: Optional[str] = None) -> Callable[[SBuiltin], SBuiltin]:
+        def decorator(func: SBuiltin) -> SBuiltin:
+            _builtin_form_dict[name or func.__name__] = func
+
+            return func
+
+        return decorator
+
+    @staticmethod
+    @builtin_form()
+    def Quote(expr: Symex, env: Environment) -> Symex:
+        return expr.as_list[1:]
+
+    @staticmethod
+    @builtin_form()
+    def Lambda(expr: Symex, env: Environment) -> Symex:
+        params, body = expr.as_list[1:]
+        if not params.is_list:
+            raise ValueError('argument list should be a list')
+        params_atoms = [param.as_atom for param in params.as_list]
+
+        return Closure(params_atoms, body, env).to_symex()
+
+    @staticmethod
+    @builtin_form()
+    def And(expr: Symex, env: Environment) -> Symex:
+        result: Symex = SAtom(':true')
+        for exp in expr.as_list[1:]:
+            result = exp.eval_in(env)
+            if not result:
+                return result
+
+        return result
+
+    @staticmethod
+    @builtin_form()
+    def Or(expr: Symex, env: Environment) -> Symex:
+        result: Symex = SAtom(':false')
+        for exp in expr.as_list[1:]:
+            result = exp.eval_in(env)
+            if result:
+                return result
+
+        return result
+
+    dict: ClassVar[dict[str, SBuiltin]] = _builtin_form_dict
+
+del _builtin_form_dict
 
 class Function():
     @staticmethod
@@ -265,8 +295,8 @@ class Closure(Function):
 
 SFunction = Callable[[list[Symex]], Symex]
 
-primitive_dict: dict[str, SFunction] = {}
-primitive_env: Environment = Environment([])
+_primitive_dict: dict[str, SFunction] = {}
+_primitive_env: Environment = Environment([])
 
 @dataclass(frozen=True)
 class Primitive(Function):
@@ -277,9 +307,9 @@ class Primitive(Function):
         name = func.__name__
         new_binding = Binding(SAtom(name), SList([SAtom(':primitive'), SAtom(name)]))
 
-        primitive_dict[name] = func
-        global primitive_env
-        primitive_env = Environment(primitive_env.bindings + [new_binding])
+        _primitive_dict[name] = func
+        global _primitive_env
+        _primitive_env = Environment(_primitive_env.bindings + [new_binding])
 
         return func
 
@@ -314,11 +344,11 @@ class Primitive(Function):
     def apply(self, args: list[Symex]) -> Symex:
         return self.func(args)
 
-    dict: ClassVar[dict[str, SFunction]] = primitive_dict
-    env: ClassVar[Environment] = primitive_env
+    dict: ClassVar[dict[str, SFunction]] = _primitive_dict
+    env: ClassVar[Environment] = _primitive_env
 
-del primitive_dict
-del primitive_env
+del _primitive_dict
+del _primitive_env
 
 class SymexParser():
     def __init__(self, text: str):
