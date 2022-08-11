@@ -1,0 +1,11 @@
+; This file is hereby released under the GNU GPL version 3. NO WARRANTY.
+; Copyright 2022 by Tanner Swett.
+
+; This expression evaluates to a copy of itself.
+
+((Lambda (expr)
+     (List expr
+           (List (Quote Quote) expr)))
+ (Quote (Lambda (expr)
+            (List expr
+                  (List (Quote Quote) expr)))))
