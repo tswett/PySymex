@@ -212,7 +212,19 @@ class BuiltinForms():
             raise ValueError('argument list should be a list')
         params_atoms = [param.as_atom for param in params.as_list]
 
-        return Closure(params_atoms, body, env).to_symex()
+        return Closure(params_atoms, None, body, env).to_symex()
+
+    @staticmethod
+    @builtin_form()
+    def Function(arg_exprs: SList, env: Environment) -> Symex:
+        name, params, body = arg_exprs
+        if not name.is_atom:
+            raise ValueError('function name should be an atom')
+        if not params.is_list:
+            raise ValueError('argument list should be a list')
+        params_atoms = [param.as_atom for param in params.as_list]
+
+        return Closure(params_atoms, name.as_atom, body, env).to_symex()
 
     @staticmethod
     @builtin_form()
@@ -283,11 +295,18 @@ class Function():
 @dataclass(frozen=True)
 class Closure(Function):
     params: list[SAtom]
+    name: Optional[SAtom]
     body: Symex
     env: Environment
 
     def to_symex(self) -> SList:
+        if self.name is not None:
+            name_list = SList([self.name])
+        else:
+            name_list = SList([])
+
         return SList([SAtom(':closure'),
+                      name_list,
                       SList(list(self.params)),
                       self.body,
                       self.env.to_symex()])
@@ -297,22 +316,32 @@ class Closure(Function):
         if symex.is_atom:
             raise ValueError('tried to treat an atom as a closure')
 
-        tag, params, body, env = symex.as_list
+        tag, name_list, params, body, env = symex.as_list
 
         if tag != SAtom(':closure'):
             raise ValueError("this list isn't a closure")
 
+        name_list = name_list.as_list
+        if len(name_list) == 0:
+            name = None
+        else:
+            name_symex, = name_list
+            name = name_symex.as_atom
+
         params_atoms = [param.as_atom for param in params.as_list]
 
-        return Closure(params_atoms, body, Environment.from_symex(env))
+        return Closure(params_atoms, name, body, Environment.from_symex(env))
 
     def apply(self, args: list[Symex]) -> Symex:
         if len(args) != len(self.params):
             raise ValueError('closure got wrong number of arguments')
 
-        new_env = self.env.extend_with([Binding(param, arg)
-                                        for param, arg
-                                        in zip(self.params, args)])
+        bindings = [Binding(param, arg) for param, arg in zip(self.params, args)]
+
+        if self.name is not None:
+            bindings = [Binding(self.name, self.to_symex())] + bindings
+
+        new_env = self.env.extend_with(bindings)
 
         return self.body.eval_in(new_env)
 

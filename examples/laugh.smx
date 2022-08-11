@@ -1,10 +1,6 @@
 (Where (Laugh (List :one :two :three :four :five))
-    (Z (Lambda (f)
-           ((Lambda (x) (f (Lambda (v) ((x x) v))))
-            (Lambda (x) (f (Lambda (v) ((x x) v)))))))
-    (Laugh (Z (Lambda (laugh)
-                  (Lambda (list)
-                      (Cond ((= list (List))
-                                 (List))
-                            (:true
-                                (Cons :ha (laugh (Tail list))))))))))
+    (Laugh (Function Laugh (list)
+        (Cond ((= list (List))
+                  (List))
+              (:true
+                  (Cons :ha (Laugh (Tail list))))))))
