@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import ClassVar, Iterator, NoReturn, Optional, overload, Union
+from typing import ClassVar, Iterator, Optional, overload, Union
 
 class Symex:
     def __bool__(self) -> bool:
