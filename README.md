@@ -15,4 +15,8 @@ This will parse, evaluate, and print the Lisp expression in `laugh.smx`, and the
 
 PySymex is fully type-annotated and should typecheck successfully with mypy:
 
-    python -m mypy --disallow-untyped-defs symex
+    mypy --disallow-untyped-defs symex
+
+You can also run the unit tests by simply running
+
+    pytest
