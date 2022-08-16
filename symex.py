@@ -435,6 +435,11 @@ class Primitive(Function):
     def List(args: list[Symex]) -> Symex:
         return SList(args)
 
+    @staticmethod
+    @primitive_func()
+    def Error(args: list[Symex]) -> Symex:
+        raise ValueError(f'Symex error: {args[0]}')
+
     dict: ClassVar[dict[str, SFunction]] = _primitive_dict
     env: ClassVar[Environment] = _primitive_env
 
