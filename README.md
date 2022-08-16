@@ -6,7 +6,7 @@ To try it out, you can run
 
 and then
 
-    laugh = open('examples/laugh.smx', 'r').read()
+    laugh = open('examples/laugh.smx').read()
     Symex.rep(laugh)
 
 This will parse, evaluate, and print the Lisp expression in `laugh.smx`, and the result of it should be
@@ -15,4 +15,4 @@ This will parse, evaluate, and print the Lisp expression in `laugh.smx`, and the
 
 PySymex is fully type-annotated and should typecheck successfully with mypy:
 
-    python -m mypy --disallow-untyped-defs symex.py
+    python -m mypy --disallow-untyped-defs symex
