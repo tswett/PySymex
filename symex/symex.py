@@ -44,6 +44,10 @@ class Symex:
     def as_atom(self) -> SAtom:
         raise NotImplementedError()
 
+    @property
+    def is_data_atom(self) -> bool:
+        raise NotImplementedError()
+
     def eval(self) -> Symex:
         from symex.interpreter import Primitive
         return self.eval_in(Primitive.env)
@@ -77,8 +81,12 @@ class SAtom(Symex):
     def as_atom(self) -> SAtom:
         return self
 
+    @property
+    def is_data_atom(self) -> bool:
+        return len(self.text) >= 1 and self.text[0] == ':'
+
     def eval_in(self, env: Environment) -> Symex:
-        if len(self.text) >= 1 and self.text[0] == ':':
+        if self.is_data_atom:
             return self
         elif self in env:
             return env[self]
@@ -126,6 +134,10 @@ class SList(Symex):
     @property
     def as_atom(self) -> SAtom:
         raise ValueError('this is a list, not an atom')
+
+    @property
+    def is_data_atom(self) -> bool:
+        return False
 
     def eval_in(self, env: Environment) -> Symex:
         from symex.interpreter import BuiltinForms

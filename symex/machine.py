@@ -23,6 +23,9 @@ class StackFrame:
 
 class Evaluate(StackFrame):
     def call(self, expr: Symex) -> Tuple[list[StackFrame], Symex]:
+        if expr.is_data_atom:
+            return [], expr
+
         head = expr.as_list[0]
 
         if head == SAtom('Quote'):

@@ -23,3 +23,23 @@ def test_can_evaluate_tail() -> None:
     result = machine.evaluate(input)
 
     assert result == SList([])
+
+def test_can_evaluate_data_atom() -> None:
+    input = SAtom(':test')
+    result = machine.evaluate(input)
+
+    assert result == SAtom(':test')
+
+def _test_can_evaluate_laugh() -> None:
+    input = Symex.parse('''
+        (Where (Laugh (List :one :two :three :four :five))
+            (Laugh (Function Laugh (list)
+                (Cond ((= list (List))
+                        (List))
+                    (:true
+                        (Cons :ha (Laugh (Tail list))))))))
+    ''')
+
+    result = machine.evaluate(input)
+
+    assert result == Symex.parse(':ha :ha :ha :ha :ha')
