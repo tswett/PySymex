@@ -30,6 +30,38 @@ def test_can_evaluate_data_atom() -> None:
 
     assert result == SAtom(':test')
 
+def test_empty_where() -> None:
+    input = Symex.parse('(Where :test)')
+    result = machine.evaluate(input)
+
+    assert result == SAtom(':test')
+
+def test_simple_where() -> None:
+    input = Symex.parse('(Where color (color :blue))')
+    result = machine.evaluate(input)
+
+    assert result == SAtom(':blue')
+
+def test_nested_where() -> None:
+    input = Symex.parse('''
+        (Where (Where color
+                      (flavor :raspberry))
+               (color :blue))
+    ''')
+    result = machine.evaluate(input)
+
+    assert result == SAtom(':blue')
+
+def test_hiding_where() -> None:
+    input = Symex.parse('''
+        (Where (Where color
+                      (color :yellow))
+               (color :blue))
+    ''')
+    result = machine.evaluate(input)
+
+    assert result == SAtom(':yellow')
+
 def _test_can_evaluate_laugh() -> None:
     input = Symex.parse('''
         (Where (Laugh (List :one :two :three :four :five))

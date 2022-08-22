@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterator, Union, overload
 
 class Symex:
@@ -152,7 +152,7 @@ class SList(Symex):
 
 @dataclass(frozen=True)
 class Environment():
-    bindings: list[Binding]
+    bindings: list[Binding] = field(default_factory=list)
 
     def __contains__(self, name: SAtom) -> bool:
         for binding in self.bindings:

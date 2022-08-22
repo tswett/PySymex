@@ -12,19 +12,26 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 from symex import Symex
-from symex.symex import SAtom
+from symex.symex import Binding, Environment, SAtom
 
 class StackFrame:
     def call(self, expr: Symex) -> Tuple[list[StackFrame], Symex]:
         raise NotImplementedError()
 
 class Evaluate(StackFrame):
+    def __init__(self, env: Optional[Environment] = None):
+        self.env = env or Environment()
+
     def call(self, expr: Symex) -> Tuple[list[StackFrame], Symex]:
-        if expr.is_data_atom:
-            return [], expr
+        if expr.is_atom:
+            if expr.is_data_atom:
+                return [], expr
+            else:
+                result = self.env[expr.as_atom]
+                return [], result
 
         head = expr.as_list[0]
 
@@ -32,10 +39,17 @@ class Evaluate(StackFrame):
             _, quoted_expr = expr.as_list
             return [], quoted_expr
         elif head == SAtom('Tail'):
+            # TODO: Sooner or later, this should be implemented as a builtin
+            # function, not as a special case.
             _, arg_expr = expr.as_list
             return [Tail(), Evaluate()], arg_expr
+        elif head == SAtom('Where'):
+            _, arg_expr, *binding_lists = expr.as_list
+            bindings = [Binding.from_symex(b) for b in binding_lists]
+            new_env = self.env.extend_with(bindings)
+            return [Evaluate(new_env)], arg_expr
         else:
-            raise ValueError("don't know how to evaluate this")
+            raise ValueError("don't know how to evaluate this list")
 
 class Tail(StackFrame):
     def call(self, expr: Symex) -> Tuple[list[StackFrame], Symex]:

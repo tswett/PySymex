@@ -20,6 +20,38 @@ def test_can_parse_a_list() -> None:
     result = Symex.parse('(one two)')
     assert result == SList([SAtom('one'), SAtom('two')])
 
+def test_empty_where() -> None:
+    input = Symex.parse('(Where :test)')
+    result = input.eval()
+
+    assert result == SAtom(':test')
+
+def test_simple_where() -> None:
+    input = Symex.parse('(Where color (color :blue))')
+    result = input.eval()
+
+    assert result == SAtom(':blue')
+
+def test_nested_where() -> None:
+    input = Symex.parse('''
+        (Where (Where color
+                      (flavor :raspberry))
+               (color :blue))
+    ''')
+    result = input.eval()
+
+    assert result == SAtom(':blue')
+
+def test_hiding_where() -> None:
+    input = Symex.parse('''
+        (Where (Where color
+                      (color :yellow))
+               (color :blue))
+    ''')
+    result = input.eval()
+
+    assert result == SAtom(':yellow')
+
 def test_laugh() -> None:
     program = '''
         (Where (Laugh (List :one :two :three :four :five))
