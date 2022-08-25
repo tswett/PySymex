@@ -12,13 +12,13 @@
 
 from symex import machine, SAtom, SList, Symex
 
-def _test_can_evaluate_quote() -> None:
+def test_can_evaluate_quote() -> None:
     input = Symex.parse('(Quote test)')
     result = machine.evaluate(input)
 
     assert result == SAtom('test')
 
-def _test_can_evaluate_tail() -> None:
+def test_can_evaluate_tail() -> None:
     input = Symex.parse('(Tail (Quote (test)))')
     result = machine.evaluate(input)
 

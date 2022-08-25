@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+# TODO: this really shouldn't import anything from symex.interpreter
+from symex.interpreter import Primitive
 from symex.symex import Environment, SAtom, Symex
 
 EngineAction = None
@@ -28,6 +30,8 @@ class ListMachine:
     def start(self) -> EngineAction:
         if self.expr.is_atom:
             return self.engine.return_(self.expr.eval_in(self.env))
+        elif self.expr.as_list[0] == SAtom('Quote'):
+            return self.engine.return_(self.expr.as_list[1])
         else:
             return self.engine.continue_to(self.evaluate_subexprs)
 
@@ -43,7 +47,7 @@ class ListMachine:
 
     def got_subexpr_value(self, subexpr_value: Symex) -> EngineAction:
         self.subexpr_values.append(subexpr_value)
-        return self.engine.continue_to(self.got_subexpr_value)
+        return self.engine.continue_to(self.evaluate_subexprs)
 
     def apply(self) -> EngineAction:
         func, *args = self.subexpr_values
@@ -58,7 +62,11 @@ def is_primitive_function(func: Symex) -> bool:
     return func.is_list and func.as_list[0] == SAtom(':primitive')
 
 def apply_primitive_function(func: Symex, args: list[Symex]) -> Symex:
-    raise NotImplementedError()
+    func_name = func.as_list[1].as_atom.text
+    if func_name == 'Tail':
+        return args[0].as_list[1:]
+    else:
+        raise NotImplementedError()
 
 def function_body(func: Symex) -> Symex:
     raise NotImplementedError()
@@ -102,4 +110,4 @@ class StackEngine:
         self.start_machine(args)
 
 def evaluate(expr: Symex) -> Symex:
-    return StackEngine(ListMachine).execute(expr, Environment([]))
+    return StackEngine(ListMachine).execute(expr, Primitive.env)
