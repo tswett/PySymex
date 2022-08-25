@@ -12,57 +12,94 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from symex.symex import Environment, SAtom, Symex
 
-from symex import Symex
-from symex.symex import Binding, Environment, SAtom
+EngineAction = None
 
-class StackFrame:
-    def call(self, expr: Symex) -> Tuple[list[StackFrame], Symex]:
-        raise NotImplementedError()
+class ListMachine:
+    '''A ListMachine is a finite state machine implementing one stack frame.'''
 
-class Evaluate(StackFrame):
-    def __init__(self, env: Optional[Environment] = None):
-        self.env = env or Environment()
+    def __init__(self, engine: StackEngine, expr: Symex, env: Environment) -> None:
+        self.engine = engine
+        self.expr = expr
+        self.env = env
+        self.subexpr_values = []
 
-    def call(self, expr: Symex) -> Tuple[list[StackFrame], Symex]:
-        if expr.is_atom:
-            if expr.is_data_atom:
-                return [], expr
-            else:
-                result = self.env[expr.as_atom]
-                return [], result
-
-        head = expr.as_list[0]
-
-        if head == SAtom('Quote'):
-            _, quoted_expr = expr.as_list
-            return [], quoted_expr
-        elif head == SAtom('Tail'):
-            # TODO: Sooner or later, this should be implemented as a builtin
-            # function, not as a special case.
-            _, arg_expr = expr.as_list
-            return [Tail(), Evaluate()], arg_expr
-        elif head == SAtom('Where'):
-            _, arg_expr, *binding_lists = expr.as_list
-            bindings = [Binding.from_symex(b) for b in binding_lists]
-            new_env = self.env.extend_with(bindings)
-            return [Evaluate(new_env)], arg_expr
+    def start(self) -> EngineAction:
+        if self.expr.is_atom:
+            return self.engine.return_(self.expr.eval_in(self.env))
         else:
-            raise ValueError("don't know how to evaluate this list")
+            return self.engine.continue_to(self.evaluate_subexprs)
 
-class Tail(StackFrame):
-    def call(self, expr: Symex) -> Tuple[list[StackFrame], Symex]:
-        result = expr.as_list[1:]
-        return [], result
+    def evaluate_subexprs(self) -> EngineAction:
+        value_count = len(self.subexpr_values)
+        if value_count == len(self.expr.as_list):
+            return self.engine.continue_to(self.apply)
+        else:
+            next_subexpr = self.expr.as_list[value_count]
+            return self.engine.recurse(
+                recursion_args=[next_subexpr, self.env],
+                continue_callback=self.got_subexpr_value)
+
+    def got_subexpr_value(self, subexpr_value: Symex) -> EngineAction:
+        self.subexpr_values.append(subexpr_value)
+        return self.engine.continue_to(self.got_subexpr_value)
+
+    def apply(self) -> EngineAction:
+        func, *args = self.subexpr_values
+        if is_primitive_function(func):
+            return self.engine.return_(apply_primitive_function(func, args))
+        else:
+            body = function_body(func)
+            env = environment_for_call(func, args)
+            return self.engine.tail_call(body, env)
+
+def is_primitive_function(func: Symex) -> bool:
+    return func.is_list and func.as_list[0] == SAtom(':primitive')
+
+def apply_primitive_function(func: Symex, args: list[Symex]) -> Symex:
+    raise NotImplementedError()
+
+def function_body(func: Symex) -> Symex:
+    raise NotImplementedError()
+
+def environment_for_call(func: Symex, args: list[Symex]) -> Environment:
+    raise NotImplementedError()
+
+class StackEngine:
+    def __init__(self, machine_factory) -> None:
+        self.stack = []
+        self.machine_factory = machine_factory
+
+    def execute(self, *args):
+        self.start_machine(args)
+        current_value = None
+
+        while len(self.stack) != 0:
+            callback, args, use_return_value = self.stack.pop()
+            if use_return_value:
+                current_value = callback(current_value, *args)
+            else:
+                current_value = callback(*args)
+
+        return current_value
+
+    def start_machine(self, args):
+        machine = self.machine_factory(self, *args)
+        self.stack.append((machine.start, [], False))
+
+    def return_(self, value):
+        return value
+
+    def continue_to(self, callback, *args):
+        self.stack.append((callback, args, False))
+
+    def recurse(self, recursion_args, continue_callback, *continue_args):
+        self.stack.append((continue_callback, continue_args, True))
+        self.start_machine(recursion_args)
+
+    def tail_call(self, *args):
+        self.start_machine(args)
 
 def evaluate(expr: Symex) -> Symex:
-    current_expr = expr
-    call_stack: list[StackFrame] = [Evaluate()]
-
-    while call_stack != []:
-        top_frame = call_stack.pop()
-        new_frames, current_expr = top_frame.call(current_expr)
-        call_stack.extend(new_frames)
-
-    return current_expr
+    return StackEngine(ListMachine).execute(expr, Environment([]))
