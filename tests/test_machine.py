@@ -42,6 +42,12 @@ def _test_simple_where() -> None:
 
     assert result == SAtom(':blue')
 
+def _test_expression_where() -> None:
+    input = Symex.parse('(Where list (list (Tail (Quote test))))')
+    result = machine.evaluate(input)
+
+    assert result == SList([])
+
 def _test_nested_where() -> None:
     input = Symex.parse('''
         (Where (Where color

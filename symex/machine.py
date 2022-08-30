@@ -12,102 +12,111 @@
 
 from __future__ import annotations
 
-# TODO: this really shouldn't import anything from symex.interpreter
+from dataclasses import dataclass, field
+from typing import Optional, Sequence
+
+from symex import Symex
+# TODO: this shouldn't reference symex.interpreter
 from symex.interpreter import Primitive
-from symex.symex import Environment, SAtom, Symex
+from symex.symex import Binding, Environment, SAtom, SList
 
-EngineAction = None
+@dataclass(frozen=True)
+class FrameResult:
+    new_frames: Sequence[StackFrame] = field(default_factory=list)
+    result_expr: Optional[Symex] = field(default=None)
 
-class ListMachine:
-    '''A ListMachine is a finite state machine implementing one stack frame.'''
-
-    def __init__(self, engine: StackEngine, expr: Symex, env: Environment) -> None:
-        self.engine = engine
-        self.expr = expr
-        self.env = env
-        self.subexpr_values = []
-
-    def start(self) -> EngineAction:
-        if self.expr.is_atom:
-            return self.engine.return_(self.expr.eval_in(self.env))
-        elif self.expr.as_list[0] == SAtom('Quote'):
-            return self.engine.return_(self.expr.as_list[1])
-        else:
-            return self.engine.continue_to(self.evaluate_subexprs)
-
-    def evaluate_subexprs(self) -> EngineAction:
-        value_count = len(self.subexpr_values)
-        if value_count == len(self.expr.as_list):
-            return self.engine.continue_to(self.apply)
-        else:
-            next_subexpr = self.expr.as_list[value_count]
-            return self.engine.recurse(
-                recursion_args=[next_subexpr, self.env],
-                continue_callback=self.got_subexpr_value)
-
-    def got_subexpr_value(self, subexpr_value: Symex) -> EngineAction:
-        self.subexpr_values.append(subexpr_value)
-        return self.engine.continue_to(self.evaluate_subexprs)
-
-    def apply(self) -> EngineAction:
-        func, *args = self.subexpr_values
-        if is_primitive_function(func):
-            return self.engine.return_(apply_primitive_function(func, args))
-        else:
-            body = function_body(func)
-            env = environment_for_call(func, args)
-            return self.engine.tail_call(body, env)
-
-def is_primitive_function(func: Symex) -> bool:
-    return func.is_list and func.as_list[0] == SAtom(':primitive')
-
-def apply_primitive_function(func: Symex, args: list[Symex]) -> Symex:
-    func_name = func.as_list[1].as_atom.text
-    if func_name == 'Tail':
-        return args[0].as_list[1:]
-    else:
+class StackFrame:
+    def call(self, expr: Optional[Symex]) -> FrameResult:
         raise NotImplementedError()
 
-def function_body(func: Symex) -> Symex:
-    raise NotImplementedError()
+class Evaluate(StackFrame):
+    def __init__(self, expr: Symex, env: Environment):
+        self.expr = expr
+        self.env = env
 
-def environment_for_call(func: Symex, args: list[Symex]) -> Environment:
-    raise NotImplementedError()
+    def call(self, _: Optional[Symex]) -> FrameResult:
+        if self.expr.is_atom:
+            value = atom_value(self.expr, self.env)
+            return FrameResult(result_expr=value)
 
-class StackEngine:
-    def __init__(self, machine_factory) -> None:
-        self.stack = []
-        self.machine_factory = machine_factory
+        head = self.expr.as_list[0]
 
-    def execute(self, *args):
-        self.start_machine(args)
-        current_value = None
+        if head == SAtom('Quote'):
+            _, quoted_expr = self.expr.as_list
+            return FrameResult(result_expr=quoted_expr)
+        else:
+            new_frames = [EvaluateForCall(self.expr.as_list, [], self.env)]
+            return FrameResult(new_frames=new_frames)
 
-        while len(self.stack) != 0:
-            callback, args, use_return_value = self.stack.pop()
-            if use_return_value:
-                current_value = callback(current_value, *args)
+def atom_value(expr: Symex, env: Environment) -> Symex:
+    if expr.is_data_atom:
+        return expr
+    else:
+        result = env[expr.as_atom]
+        return result
+
+class EvaluateForCall(StackFrame):
+    def __init__(self, expr: SList, values: list[Symex], env: Environment):
+        self.expr = expr
+        self.values = values
+        self.env = env
+
+    def call(self, _: Optional[Symex]) -> FrameResult:
+        if len(self.values) < len(self.expr):
+            next_expr = self.expr[len(self.values)]
+            new_frames = [GotValueForCall(self.expr, self.values, self.env),
+                          Evaluate(next_expr, self.env)]
+            return FrameResult(new_frames=new_frames)
+        else:
+            if is_builtin(self.values[0]):
+                result = evaluate_builtin(self.values[0], self.values[1:])
+                return FrameResult(result_expr=result)
             else:
-                current_value = callback(*args)
+                body = get_function_body(self.values[0])
+                function_env = build_function_env(self.values[0], self.values[1:])
+                new_frames = [Evaluate(body, function_env)]
+                return FrameResult(new_frames=new_frames)
 
-        return current_value
+class GotValueForCall(StackFrame):
+    def __init__(self, expr: SList, values: list[Symex], env: Environment):
+        self.expr = expr
+        self.values = values
+        self.env = env
 
-    def start_machine(self, args):
-        machine = self.machine_factory(self, *args)
-        self.stack.append((machine.start, [], False))
+    def call(self, new_value: Optional[Symex]) -> FrameResult:
+        if new_value is None:
+            raise ValueError("GotValueForCall didn't get a result")
+        else:
+            new_frames = [EvaluateForCall(self.expr, self.values + [new_value], self.env)]
+            return FrameResult(new_frames=new_frames)
 
-    def return_(self, value):
-        return value
+def is_builtin(function: Symex) -> bool:
+    return function.is_list and function.as_list[0] == SAtom(':primitive')
 
-    def continue_to(self, callback, *args):
-        self.stack.append((callback, args, False))
+def evaluate_builtin(function: Symex, args: list[Symex]) -> Symex:
+    builtin = Primitive.from_symex(function)
+    return builtin.apply(args)
 
-    def recurse(self, recursion_args, continue_callback, *continue_args):
-        self.stack.append((continue_callback, continue_args, True))
-        self.start_machine(recursion_args)
+def get_function_body(function: Symex) -> Symex:
+    raise NotImplementedError()
 
-    def tail_call(self, *args):
-        self.start_machine(args)
+def build_function_env(function: Symex, args: list[Symex]) -> Environment:
+    raise NotImplementedError()
 
-def evaluate(expr: Symex) -> Symex:
-    return StackEngine(ListMachine).execute(expr, Primitive.env)
+def evaluate(expr: Symex, env: Optional[Environment] = None) -> Symex:
+    env = env or Primitive.env
+
+    last_result: Optional[Symex] = None
+    call_stack: list[StackFrame] = [Evaluate(expr, env)]
+
+    while call_stack != []:
+        top_frame = call_stack.pop()
+        frame_result = top_frame.call(last_result)
+
+        call_stack.extend(frame_result.new_frames)
+        last_result = frame_result.result_expr
+
+    if last_result is None:
+        raise ValueError("the last stack frame didn't return a result")
+    else:
+        return last_result
