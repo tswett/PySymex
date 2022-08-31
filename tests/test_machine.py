@@ -30,25 +30,25 @@ def test_can_evaluate_data_atom() -> None:
 
     assert result == SAtom(':test')
 
-def _test_empty_where() -> None:
+def test_empty_where() -> None:
     input = Symex.parse('(Where :test)')
     result = machine.evaluate(input)
 
     assert result == SAtom(':test')
 
-def _test_simple_where() -> None:
+def test_simple_where() -> None:
     input = Symex.parse('(Where color (color :blue))')
     result = machine.evaluate(input)
 
     assert result == SAtom(':blue')
 
-def _test_expression_where() -> None:
-    input = Symex.parse('(Where list (list (Tail (Quote test))))')
+def test_expression_where() -> None:
+    input = Symex.parse('(Where list (list (Head (Quote (test)))))')
     result = machine.evaluate(input)
 
-    assert result == SList([])
+    assert result == SAtom('test')
 
-def _test_nested_where() -> None:
+def test_nested_where() -> None:
     input = Symex.parse('''
         (Where (Where color
                       (flavor :raspberry))
@@ -58,7 +58,7 @@ def _test_nested_where() -> None:
 
     assert result == SAtom(':blue')
 
-def _test_hiding_where() -> None:
+def test_hiding_where() -> None:
     input = Symex.parse('''
         (Where (Where color
                       (color :yellow))

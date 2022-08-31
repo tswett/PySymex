@@ -44,6 +44,10 @@ class Evaluate(StackFrame):
         if head == SAtom('Quote'):
             _, quoted_expr = self.expr.as_list
             return FrameResult(result_expr=quoted_expr)
+        elif head == SAtom('Where'):
+            _, body_expr, *binding_exprs = self.expr.as_list
+            new_frames: list[StackFrame] = [Where(body_expr, binding_exprs, self.env)]
+            return FrameResult(new_frames=new_frames)
         else:
             new_frames = [EvaluateForCall(self.expr.as_list, [], self.env)]
             return FrameResult(new_frames=new_frames)
@@ -88,6 +92,43 @@ class GotValueForCall(StackFrame):
             raise ValueError("GotValueForCall didn't get a result")
         else:
             new_frames = [EvaluateForCall(self.expr, self.values + [new_value], self.env)]
+            return FrameResult(new_frames=new_frames)
+
+class Where(StackFrame):
+    def __init__(self, body_expr: Symex, binding_exprs: list[Symex], env: Environment):
+        self.body_expr = body_expr
+        self.binding_exprs = binding_exprs
+        self.env = env
+
+    def call(self, _: Optional[Symex]):
+        if len(self.binding_exprs) == 0:
+            new_frames: list[StackFrame] = [Evaluate(self.body_expr, self.env)]
+            return FrameResult(new_frames=new_frames)
+        else:
+            first_binding_expr, *remaining_binding_exprs = self.binding_exprs
+            name, value_expr = first_binding_expr.as_list
+            name = name.as_atom
+            new_frames = [GotValueForWhere(self.body_expr,
+                                           remaining_binding_exprs,
+                                           self.env,
+                                           name),
+                          Evaluate(value_expr, self.env)]
+            return FrameResult(new_frames=new_frames)
+
+class GotValueForWhere(StackFrame):
+    def __init__(self, body_expr: Symex, binding_exprs: list[Symex], env: Environment, new_binding_name: SAtom):
+        self.body_expr = body_expr
+        self.binding_exprs = binding_exprs
+        self.env = env
+        self.new_binding_name = new_binding_name
+
+    def call(self, new_value: Optional[Symex]):
+        if new_value is None:
+            raise ValueError("GotValueForWhere didn't get a result")
+        else:
+            new_binding = Binding(self.new_binding_name, new_value)
+            new_env = self.env.extend_with([new_binding])
+            new_frames = [Where(self.body_expr, self.binding_exprs, new_env)]
             return FrameResult(new_frames=new_frames)
 
 def is_builtin(function: Symex) -> bool:
