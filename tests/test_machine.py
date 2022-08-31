@@ -68,6 +68,12 @@ def test_hiding_where() -> None:
 
     assert result == SAtom(':yellow')
 
+def test_simple_function() -> None:
+    input = Symex.parse('((Function Test (x f) (f x)) (List :hello) Head)')
+    result = machine.evaluate(input)
+
+    assert result == SAtom(':hello')
+
 def _test_can_evaluate_laugh() -> None:
     input = Symex.parse('''
         (Where (Laugh (List :one :two :three :four :five))

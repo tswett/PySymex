@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 
 from symex import Symex
 # TODO: this shouldn't reference symex.interpreter
-from symex.interpreter import Primitive
+from symex.interpreter import Closure, Primitive
 from symex.symex import Binding, Environment, SAtom, SList
 
 @dataclass(frozen=True)
@@ -48,6 +48,10 @@ class Evaluate(StackFrame):
             _, body_expr, *binding_exprs = self.expr.as_list
             new_frames: list[StackFrame] = [Where(body_expr, binding_exprs, self.env)]
             return FrameResult(new_frames=new_frames)
+        elif head == SAtom('Function'):
+            _, name, params, body = self.expr.as_list
+            closure = make_closure(name, params, body, self.env)
+            return FrameResult(result_expr=closure)
         else:
             new_frames = [EvaluateForCall(self.expr.as_list, [], self.env)]
             return FrameResult(new_frames=new_frames)
@@ -58,6 +62,19 @@ def atom_value(expr: Symex, env: Environment) -> Symex:
     else:
         result = env[expr.as_atom]
         return result
+
+def make_closure(name: Symex, params: Symex, body: Symex, env: Environment) -> Symex:
+    if not name.is_atom:
+        raise ValueError('function name should be an atom')
+    if not params.is_list:
+        raise ValueError('argument list should be a list')
+    params_atoms = [param.as_atom for param in params.as_list]
+
+    return SList([SAtom(':closure'),
+                    SList([name]),
+                    params,
+                    body,
+                    env.to_symex()])
 
 class EvaluateForCall(StackFrame):
     def __init__(self, expr: SList, values: list[Symex], env: Environment):
@@ -139,10 +156,27 @@ def evaluate_builtin(function: Symex, args: list[Symex]) -> Symex:
     return builtin.apply(args)
 
 def get_function_body(function: Symex) -> Symex:
-    raise NotImplementedError()
+    _head, _name, _params, body, _env = function.as_list
+    return body
 
 def build_function_env(function: Symex, args: list[Symex]) -> Environment:
-    raise NotImplementedError()
+    _head, name_list, params, _body, env_expr = function.as_list
+
+    params = params.as_list
+    env = Environment.from_symex(env_expr)
+
+    if len(args) != len(params):
+        raise ValueError('closure got wrong number of arguments')
+
+    bindings = [Binding(param.as_atom, arg) for param, arg in zip(params, args)]
+
+    if len(name_list.as_list) > 0:
+        name, = name_list.as_list
+        bindings = [Binding(name.as_atom, function)] + bindings
+
+    new_env = env.extend_with(bindings)
+
+    return new_env
 
 def evaluate(expr: Symex, env: Optional[Environment] = None) -> Symex:
     env = env or Primitive.env
