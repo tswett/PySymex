@@ -51,6 +51,11 @@ class Evaluate(StackFrame):
             _, name, params, body = self.expr.as_list
             closure = make_closure(name, params, body, self.env)
             return FrameResult(result_expr=closure)
+        elif head == SAtom('Cond'):
+            _, *cases = self.expr.as_list
+            case_lists = [case.as_list for case in cases]
+            new_frames = [Cond(case_lists, self.env)]
+            return FrameResult(new_frames=new_frames)
         else:
             new_frames = [EvaluateForCall(self.expr.as_list, [], self.env)]
             return FrameResult(new_frames=new_frames)
@@ -116,7 +121,7 @@ class Where(StackFrame):
         self.binding_exprs = binding_exprs
         self.env = env
 
-    def call(self, _: Optional[Symex]):
+    def call(self, _: Optional[Symex]) -> FrameResult:
         if len(self.binding_exprs) == 0:
             new_frames: list[StackFrame] = [Evaluate(self.body_expr, self.env)]
             return FrameResult(new_frames=new_frames)
@@ -132,13 +137,17 @@ class Where(StackFrame):
             return FrameResult(new_frames=new_frames)
 
 class GotValueForWhere(StackFrame):
-    def __init__(self, body_expr: Symex, binding_exprs: list[Symex], env: Environment, new_binding_name: SAtom):
+    def __init__(self,
+                 body_expr: Symex,
+                 binding_exprs: list[Symex],
+                 env: Environment,
+                 new_binding_name: SAtom):
         self.body_expr = body_expr
         self.binding_exprs = binding_exprs
         self.env = env
         self.new_binding_name = new_binding_name
 
-    def call(self, new_value: Optional[Symex]):
+    def call(self, new_value: Optional[Symex]) -> FrameResult:
         if new_value is None:
             raise ValueError("GotValueForWhere didn't get a result")
         else:
@@ -146,6 +155,36 @@ class GotValueForWhere(StackFrame):
             new_env = self.env.extend_with([new_binding])
             new_frames = [Where(self.body_expr, self.binding_exprs, new_env)]
             return FrameResult(new_frames=new_frames)
+
+class Cond(StackFrame):
+    def __init__(self, cases: Sequence[SList], env: Environment):
+        self.cases = cases
+        self.env = env
+
+    def call(self, _: Optional[Symex]) -> FrameResult:
+        if len(self.cases) == 0:
+            raise ValueError('none of the conditions were true')
+
+        first_case, *remaining_cases = self.cases
+        condition, outcome = first_case.as_list
+        new_frames = [GotValueForCond(outcome, remaining_cases, self.env),
+                      Evaluate(condition, self.env)]
+        return FrameResult(new_frames=new_frames)
+
+class GotValueForCond(StackFrame):
+    def __init__(self, outcome_if_true: Symex, remaining_cases: Sequence[SList], env: Environment):
+        self.outcome_if_true = outcome_if_true
+        self.remaining_cases = remaining_cases
+        self.env = env
+
+    def call(self, condition_value: Optional[Symex]) -> FrameResult:
+        if condition_value is None:
+            raise ValueError("GotValueForCond didn't get a result")
+        if condition_value:
+            new_frames: list[StackFrame] = [Evaluate(self.outcome_if_true, self.env)]
+        else:
+            new_frames = [Cond(self.remaining_cases, self.env)]
+        return FrameResult(new_frames=new_frames)
 
 def is_builtin(function: Symex) -> bool:
     return function.is_list and function.as_list[0] == SAtom(':primitive')

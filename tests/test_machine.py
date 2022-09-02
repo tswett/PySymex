@@ -74,16 +74,22 @@ def test_simple_function() -> None:
 
     assert result == SAtom(':hello')
 
-def _test_can_evaluate_laugh() -> None:
+def test_simple_cond() -> None:
+    input = Symex.parse('(Cond (:true (Quote test)))')
+    result = machine.evaluate(input)
+
+    assert result == SAtom('test')
+
+def test_can_evaluate_laugh() -> None:
     input = Symex.parse('''
         (Where (Laugh (List :one :two :three :four :five))
             (Laugh (Function Laugh (list)
                 (Cond ((= list (List))
                         (List))
-                    (:true
-                        (Cons :ha (Laugh (Tail list))))))))
+                       (:true
+                           (Cons :ha (Laugh (Tail list))))))))
     ''')
 
     result = machine.evaluate(input)
 
-    assert result == Symex.parse(':ha :ha :ha :ha :ha')
+    assert result == Symex.parse('(:ha :ha :ha :ha :ha)')
