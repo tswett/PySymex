@@ -13,7 +13,8 @@
 ; This is intended to be a full self-interpreter eventually, but for now, it's
 ; just a stub.
 
-(Where Eval-In
-
-    (Eval-In (Function Eval-In (expr env)
-        (Error (Quote expression-not-recognized)))))
+(Function Eval-In (expr env)
+    (Where
+        (Cond
+            ((Is-Data-Atom expr) expr)
+            (:true (Error (Quote expression-not-recognized))))))

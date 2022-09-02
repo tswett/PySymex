@@ -88,10 +88,8 @@ class SAtom(Symex):
     def eval_in(self, env: Environment) -> Symex:
         if self.is_data_atom:
             return self
-        elif self in env:
-            return env[self]
         else:
-            raise NotImplementedError("don't know how to evaluate this atom")
+            return env[self]
 
 @dataclass(frozen=True)
 class SList(Symex):
@@ -166,7 +164,7 @@ class Environment():
             if binding.name == name:
                 return binding.value
 
-        raise ValueError('the given name is not in this environment')
+        raise ValueError(f'the name "{name.text}" is not in this environment')
 
     def to_symex(self) -> SList:
         return SList([binding.to_symex() for binding in self.bindings])
@@ -197,3 +195,9 @@ class Binding():
         name, value = symex.as_list
 
         return Binding(name.as_atom, value)
+
+def eval_file(filename: str) -> Symex:
+    contents = open(filename).read()
+    expression = Symex.parse(contents)
+    result = expression.eval()
+    return result

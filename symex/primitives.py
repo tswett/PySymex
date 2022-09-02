@@ -102,3 +102,11 @@ def List(args: list[Symex]) -> Symex:
 @primitive_func()
 def Error(args: list[Symex]) -> Symex:
     raise ValueError(f'Symex error: {args[0]}')
+
+@primitive_func('Is-Data-Atom')
+def IsDataAtom(args: list[Symex]) -> Symex:
+    x, = args
+    if x.is_data_atom:
+        return SAtom(':true')
+    else:
+        return SAtom(':false')

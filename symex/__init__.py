@@ -10,4 +10,4 @@
 #
 # Copyright 2022 by Tanner Swett.
 
-from symex.symex import SAtom, SList, Symex
+from symex.symex import eval_file, SAtom, SList, Symex
