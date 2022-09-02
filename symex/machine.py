@@ -16,8 +16,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 from symex import Symex
-# TODO: this shouldn't reference symex.interpreter
-from symex.interpreter import Closure, Primitive
+from symex.primitives import Primitive, primitive_env
 from symex.symex import Binding, Environment, SAtom, SList
 
 @dataclass(frozen=True)
@@ -179,7 +178,7 @@ def build_function_env(function: Symex, args: list[Symex]) -> Environment:
     return new_env
 
 def evaluate(expr: Symex, env: Optional[Environment] = None) -> Symex:
-    env = env or Primitive.env
+    env = env or primitive_env
 
     last_result: Optional[Symex] = None
     call_stack: list[StackFrame] = [Evaluate(expr, env)]

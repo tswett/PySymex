@@ -49,8 +49,8 @@ class Symex:
         raise NotImplementedError()
 
     def eval(self) -> Symex:
-        from symex.interpreter import Primitive
-        return self.eval_in(Primitive.env)
+        from symex.primitives import primitive_env
+        return self.eval_in(primitive_env)
 
     def eval_in(self, env: Environment) -> Symex:
         raise NotImplementedError()

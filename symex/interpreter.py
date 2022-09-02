@@ -121,6 +121,7 @@ class Function():
         if symex[0] == SAtom(':closure'):
             return Closure.from_symex(symex)
         elif symex[0] == SAtom(':primitive'):
+            from symex.primitives import Primitive
             return Primitive.from_symex(symex)
         else:
             raise ValueError('not a recognizable function')
@@ -180,102 +181,3 @@ class Closure(Function):
         new_env = self.env.extend_with(bindings)
 
         return self.body.eval_in(new_env)
-
-SFunction = Callable[[list[Symex]], Symex]
-
-_primitive_dict: dict[str, SFunction] = {}
-_primitive_env: Environment = Environment([])
-
-@dataclass(frozen=True)
-class Primitive(Function):
-    name: SAtom
-
-    @staticmethod
-    def primitive_func(name: Optional[str] = None) -> Callable[[SFunction], SFunction]:
-        def decorator(func: SFunction) -> SFunction:
-            name_ = name or func.__name__
-            new_binding = Binding(SAtom(name_), SList([SAtom(':primitive'), SAtom(name_)]))
-
-            _primitive_dict[name_] = func
-            global _primitive_env
-            _primitive_env = Environment(_primitive_env.bindings + [new_binding])
-
-            return func
-        return decorator
-
-    def to_symex(self) -> SList:
-        return SList([SAtom(':primitive'), self.name])
-
-    @staticmethod
-    def from_symex(symex: Symex) -> Primitive:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as a primitive function')
-        
-        tag, name = symex.as_list
-
-        if tag != SAtom(':primitive'):
-            raise ValueError("this list isn't a primitive function")
-
-        return Primitive(name.as_atom)
-
-    @property
-    def func(self) -> SFunction:
-        return self.dict[self.name.text]
-
-    def apply(self, args: list[Symex]) -> Symex:
-        return self.func(args)
-
-    @staticmethod
-    @primitive_func()
-    def Not(args: list[Symex]) -> Symex:
-        x, = args
-        if x == SAtom(':false'):
-            return SAtom(':true')
-        else:
-            return SAtom(':false')
-
-    @staticmethod
-    @primitive_func('=')
-    def Equal(args: list[Symex]) -> Symex:
-        if len(args) == 0:
-            return SAtom(':true')
-
-        for other in args[1:]:
-            if args[0] != other:
-                return SAtom(':false')
-
-        return SAtom(':true')
-
-    @staticmethod
-    @primitive_func()
-    def Cons(args: list[Symex]) -> Symex:
-        head, tail = args
-        return SList([head] + tail.as_list.items)
-
-    @staticmethod
-    @primitive_func()
-    def Head(args: list[Symex]) -> Symex:
-        list, = args
-        return list.as_list[0]
-
-    @staticmethod
-    @primitive_func()
-    def Tail(args: list[Symex]) -> Symex:
-        list, = args
-        return list.as_list[1:]
-
-    @staticmethod
-    @primitive_func()
-    def List(args: list[Symex]) -> Symex:
-        return SList(args)
-
-    @staticmethod
-    @primitive_func()
-    def Error(args: list[Symex]) -> Symex:
-        raise ValueError(f'Symex error: {args[0]}')
-
-    dict: ClassVar[dict[str, SFunction]] = _primitive_dict
-    env: ClassVar[Environment] = _primitive_env
-
-del _primitive_dict
-del _primitive_env
