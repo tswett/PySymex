@@ -11,41 +11,41 @@
 # Copyright 2022 by Tanner Swett.
 
 from symex import SAtom, SList, Symex
-from symex.interpreters import machine
+from symex.interpreters.machine import Machine
 
 def test_can_evaluate_quote() -> None:
     input = Symex.parse('(Quote test)')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom('test')
 
 def test_can_evaluate_tail() -> None:
     input = Symex.parse('(Tail (Quote (test)))')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SList([])
 
 def test_can_evaluate_data_atom() -> None:
     input = SAtom(':test')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom(':test')
 
 def test_empty_where() -> None:
     input = Symex.parse('(Where :test)')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom(':test')
 
 def test_simple_where() -> None:
     input = Symex.parse('(Where color (color :blue))')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom(':blue')
 
 def test_expression_where() -> None:
     input = Symex.parse('(Where list (list (Head (Quote (test)))))')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom('test')
 
@@ -55,7 +55,7 @@ def test_nested_where() -> None:
                       (flavor :raspberry))
                (color :blue))
     ''')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom(':blue')
 
@@ -65,19 +65,19 @@ def test_hiding_where() -> None:
                       (color :yellow))
                (color :blue))
     ''')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom(':yellow')
 
 def test_simple_function() -> None:
     input = Symex.parse('((Function Test (x f) (f x)) (List :hello) Head)')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom(':hello')
 
 def test_simple_cond() -> None:
     input = Symex.parse('(Cond (:true (Quote test)))')
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == SAtom('test')
 
@@ -91,6 +91,6 @@ def test_can_evaluate_laugh() -> None:
                            (Cons :ha (Laugh (Tail list))))))))
     ''')
 
-    result = machine.evaluate(input)
+    result = Machine().eval(input)
 
     assert result == Symex.parse('(:ha :ha :ha :ha :ha)')

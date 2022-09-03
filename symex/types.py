@@ -125,7 +125,7 @@ class Closure(Function):
         return Closure(params_atoms, name, body, Environment.from_symex(env))
 
     def apply(self, args: list[Symex]) -> Symex:
-        from symex.interpreters.simple import eval_in
+        from symex.interpreters.simple import Simple
 
         if len(args) != len(self.params):
             raise ValueError('closure got wrong number of arguments')
@@ -137,4 +137,4 @@ class Closure(Function):
 
         new_env = self.env.extend_with(bindings)
 
-        return eval_in(self.body, new_env)
+        return Simple().eval_in(self.body, new_env)

@@ -13,8 +13,8 @@
 from __future__ import annotations
 
 from typing import Callable, ClassVar, Optional
+from symex.interpreters import Interpreter
 
-from symex.primitives import primitive_env
 from symex.symex import SAtom, SList, Symex
 from symex.types import Binding, Closure, Environment
 
@@ -68,7 +68,7 @@ class BuiltinForms():
     def And(arg_exprs: SList, env: Environment) -> Symex:
         result: Symex = SAtom(':true')
         for exp in arg_exprs:
-            result = eval_in(exp, env)
+            result = Simple().eval_in(exp, env)
             if not result:
                 return result
 
@@ -79,7 +79,7 @@ class BuiltinForms():
     def Or(arg_exprs: SList, env: Environment) -> Symex:
         result: Symex = SAtom(':false')
         for exp in arg_exprs:
-            result = eval_in(exp, env)
+            result = Simple().eval_in(exp, env)
             if result:
                 return result
 
@@ -90,8 +90,8 @@ class BuiltinForms():
     def Cond(arg_exprs: SList, env: Environment) -> Symex:
         for pair in arg_exprs:
             condition, action = pair.as_list
-            if eval_in(condition, env):
-                return eval_in(action, env)
+            if Simple().eval_in(condition, env):
+                return Simple().eval_in(action, env)
 
         raise ValueError('none of the conditions were true')
 
@@ -102,40 +102,29 @@ class BuiltinForms():
 
         for binding in bindings:
             name, value_expr = binding.as_list
-            result = eval_in(value_expr, env)
+            result = Simple().eval_in(value_expr, env)
             env = env.extend_with([Binding(name.as_atom, result)])
 
-        return eval_in(body, env)
+        return Simple().eval_in(body, env)
 
     dict: ClassVar[dict[str, SBuiltin]] = _builtin_form_dict
 
 del _builtin_form_dict
 
-def eval(expr: Symex) -> Symex:
-    return eval_in(expr, primitive_env)
-
-def eval_in(expr: Symex, env: Environment) -> Symex:
-    if expr.is_data_atom:
-        return expr
-    elif expr.is_atom:
-        return env[expr.as_atom]
-    else:
-        expr_l = expr.as_list
-
-        if len(expr_l) == 0:
-            raise ValueError('tried to evaluate an empty list')
-        elif expr_l[0].is_atom and (name := expr_l[0].as_atom.text) in BuiltinForms.dict:
-            return BuiltinForms.dict[name](expr_l[1:], env)
+class Simple(Interpreter):
+    def eval_in(self, expr: Symex, env: Environment) -> Symex:
+        if expr.is_data_atom:
+            return expr
+        elif expr.is_atom:
+            return env[expr.as_atom]
         else:
-            values = [eval_in(exp, env) for exp in expr_l]
-            func, args = values[0], values[1:]
-            return func.apply(args)
+            expr_l = expr.as_list
 
-def rep(input: str) -> str:
-    return str(eval(Symex.parse(input)))
-
-def eval_file(filename: str) -> Symex:
-    contents = open(filename).read()
-    expression = Symex.parse(contents)
-    result = eval(expression)
-    return result
+            if len(expr_l) == 0:
+                raise ValueError('tried to evaluate an empty list')
+            elif expr_l[0].is_atom and (name := expr_l[0].as_atom.text) in BuiltinForms.dict:
+                return BuiltinForms.dict[name](expr_l[1:], env)
+            else:
+                values = [self.eval_in(exp, env) for exp in expr_l]
+                func, args = values[0], values[1:]
+                return func.apply(args)

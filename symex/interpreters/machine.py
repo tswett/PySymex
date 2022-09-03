@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 from symex import Symex
-from symex.primitives import Primitive, primitive_env
+from symex.interpreters import Interpreter
+from symex.primitives import Primitive
 from symex.symex import SAtom, SList
 from symex.types import Binding, Environment
 
@@ -217,20 +218,19 @@ def build_function_env(function: Symex, args: list[Symex]) -> Environment:
 
     return new_env
 
-def evaluate(expr: Symex, env: Optional[Environment] = None) -> Symex:
-    env = env or primitive_env
+class Machine(Interpreter):
+    def eval_in(self, expr: Symex, env: Environment) -> Symex:
+        last_result: Optional[Symex] = None
+        call_stack: list[StackFrame] = [Evaluate(expr, env)]
 
-    last_result: Optional[Symex] = None
-    call_stack: list[StackFrame] = [Evaluate(expr, env)]
+        while call_stack != []:
+            top_frame = call_stack.pop()
+            frame_result = top_frame.call(last_result)
 
-    while call_stack != []:
-        top_frame = call_stack.pop()
-        frame_result = top_frame.call(last_result)
+            call_stack.extend(frame_result.new_frames)
+            last_result = frame_result.result_expr
 
-        call_stack.extend(frame_result.new_frames)
-        last_result = frame_result.result_expr
-
-    if last_result is None:
-        raise ValueError("the last stack frame didn't return a result")
-    else:
-        return last_result
+        if last_result is None:
+            raise ValueError("the last stack frame didn't return a result")
+        else:
+            return last_result

@@ -10,5 +10,4 @@
 #
 # Copyright 2022 by Tanner Swett.
 
-from symex.interpreters.simple import eval_file
 from symex.symex import SAtom, SList, Symex
