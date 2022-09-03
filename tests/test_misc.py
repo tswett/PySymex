@@ -11,6 +11,7 @@
 # Copyright 2022 by Tanner Swett.
 
 from symex import SAtom, SList, Symex
+from symex.interpreters.simple import eval, rep
 
 def test_can_parse_an_atom() -> None:
     result = Symex.parse('test')
@@ -22,13 +23,13 @@ def test_can_parse_a_list() -> None:
 
 def test_empty_where() -> None:
     input = Symex.parse('(Where :test)')
-    result = input.eval()
+    result = eval(input)
 
     assert result == SAtom(':test')
 
 def test_simple_where() -> None:
     input = Symex.parse('(Where color (color :blue))')
-    result = input.eval()
+    result = eval(input)
 
     assert result == SAtom(':blue')
 
@@ -38,7 +39,7 @@ def test_nested_where() -> None:
                       (flavor :raspberry))
                (color :blue))
     ''')
-    result = input.eval()
+    result = eval(input)
 
     assert result == SAtom(':blue')
 
@@ -48,7 +49,7 @@ def test_hiding_where() -> None:
                       (color :yellow))
                (color :blue))
     ''')
-    result = input.eval()
+    result = eval(input)
 
     assert result == SAtom(':yellow')
 
@@ -62,6 +63,6 @@ def test_laugh() -> None:
                         (Cons :ha (Laugh (Tail list))))))))
     '''
 
-    output = Symex.rep(program)
+    output = rep(program)
 
     assert output == '(:ha :ha :ha :ha :ha)'

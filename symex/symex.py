@@ -12,16 +12,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterator, Union, overload
 
 class Symex:
     def __bool__(self) -> bool:
         raise NotImplementedError()
-
-    @staticmethod
-    def rep(input: str) -> str:
-        return str(Symex.parse(input).eval())
 
     @staticmethod
     def parse(text: str) -> Symex:
@@ -48,15 +44,8 @@ class Symex:
     def is_data_atom(self) -> bool:
         raise NotImplementedError()
 
-    def eval(self) -> Symex:
-        from symex.primitives import primitive_env
-        return self.eval_in(primitive_env)
-
-    def eval_in(self, env: Environment) -> Symex:
-        raise NotImplementedError()
-
     def apply(self, args: list[Symex]) -> Symex:
-        from symex.interpreters.simple import Function
+        from symex.types import Function
         return Function.from_symex(self).apply(args)
 
 @dataclass(frozen=True)
@@ -84,12 +73,6 @@ class SAtom(Symex):
     @property
     def is_data_atom(self) -> bool:
         return len(self.text) >= 1 and self.text[0] == ':'
-
-    def eval_in(self, env: Environment) -> Symex:
-        if self.is_data_atom:
-            return self
-        else:
-            return env[self]
 
 @dataclass(frozen=True)
 class SList(Symex):
@@ -136,68 +119,3 @@ class SList(Symex):
     @property
     def is_data_atom(self) -> bool:
         return False
-
-    def eval_in(self, env: Environment) -> Symex:
-        from symex.interpreters.simple import BuiltinForms
-        if len(self) == 0:
-            raise ValueError('tried to evaluate an empty list')
-        elif self[0].is_atom and (name := self[0].as_atom.text) in BuiltinForms.dict:
-            return BuiltinForms.dict[name](self[1:], env)
-        else:
-            values = [exp.eval_in(env) for exp in self]
-            func, args = values[0], values[1:]
-            return func.apply(args)
-
-@dataclass(frozen=True)
-class Environment():
-    bindings: list[Binding] = field(default_factory=list)
-
-    def __contains__(self, name: SAtom) -> bool:
-        for binding in self.bindings:
-            if binding.name == name:
-                return True
-
-        return False
-
-    def __getitem__(self, name: SAtom) -> Symex:
-        for binding in self.bindings:
-            if binding.name == name:
-                return binding.value
-
-        raise ValueError(f'the name "{name.text}" is not in this environment')
-
-    def to_symex(self) -> SList:
-        return SList([binding.to_symex() for binding in self.bindings])
-
-    @staticmethod
-    def from_symex(symex: Symex) -> Environment:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as an environment')
-
-        return Environment([Binding.from_symex(binding) for binding in symex.as_list])
-
-    def extend_with(self, new_bindings: list[Binding]) -> Environment:
-        return Environment(new_bindings + self.bindings)
-
-@dataclass(frozen=True)
-class Binding():
-    name: SAtom
-    value: Symex
-
-    def to_symex(self) -> SList:
-        return SList([self.name, self.value])
-
-    @staticmethod
-    def from_symex(symex: Symex) -> Binding:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as a binding')
-
-        name, value = symex.as_list
-
-        return Binding(name.as_atom, value)
-
-def eval_file(filename: str) -> Symex:
-    contents = open(filename).read()
-    expression = Symex.parse(contents)
-    result = expression.eval()
-    return result

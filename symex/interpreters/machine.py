@@ -17,7 +17,8 @@ from typing import Optional, Sequence
 
 from symex import Symex
 from symex.primitives import Primitive, primitive_env
-from symex.symex import Binding, Environment, SAtom, SList
+from symex.symex import SAtom, SList
+from symex.types import Binding, Environment
 
 @dataclass(frozen=True)
 class FrameResult:

@@ -15,8 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from symex.interpreters.simple import Function
-from symex.symex import Binding, Environment, SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex
+from symex.types import Binding, Environment, Function
 
 SFunction = Callable[[list[Symex]], Symex]
 
