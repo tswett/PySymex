@@ -10,7 +10,8 @@
 #
 # Copyright 2022 by Tanner Swett.
 
-from symex import machine, SAtom, SList, Symex
+from symex import SAtom, SList, Symex
+from symex.interpreters import machine
 
 def test_can_evaluate_quote() -> None:
     input = Symex.parse('(Quote test)')

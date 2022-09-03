@@ -56,7 +56,7 @@ class Symex:
         raise NotImplementedError()
 
     def apply(self, args: list[Symex]) -> Symex:
-        from symex.interpreter import Function
+        from symex.interpreters.simple import Function
         return Function.from_symex(self).apply(args)
 
 @dataclass(frozen=True)
@@ -138,7 +138,7 @@ class SList(Symex):
         return False
 
     def eval_in(self, env: Environment) -> Symex:
-        from symex.interpreter import BuiltinForms
+        from symex.interpreters.simple import BuiltinForms
         if len(self) == 0:
             raise ValueError('tried to evaluate an empty list')
         elif self[0].is_atom and (name := self[0].as_atom.text) in BuiltinForms.dict:
