@@ -93,14 +93,28 @@ class TestInterpreters:
 
         assert result == SAtom('test')
 
+    def test_quine(self, interpreter: Interpreter) -> None:
+        input = Symex.parse('''
+            ((Lambda (expr)
+                (List expr
+                      (List (Quote Quote) expr)))
+            (Quote (Lambda (expr)
+                        (List expr
+                              (List (Quote Quote) expr)))))
+        ''')
+
+        result = interpreter.eval(input)
+
+        assert result == input
+
     def test_laugh(self, interpreter: Interpreter) -> None:
         input = Symex.parse('''
             (Where (Laugh (List :one :two :three :four :five))
                 (Laugh (Function Laugh (list)
                     (Cond ((= list Nil)
                             Nil)
-                        (:true
-                            (Cons :ha (Laugh (Tail list))))))))
+                           (:true
+                               (Cons :ha (Laugh (Tail list))))))))
         ''')
 
         result = interpreter.eval(input)
