@@ -81,6 +81,12 @@ class TestInterpreters:
 
         assert result == SAtom(':hello')
 
+    def test_simple_lambda(self, interpreter: Interpreter) -> None:
+        input = Symex.parse('((Lambda (x f) (f x)) (List :hello) Head)')
+        result = interpreter.eval(input)
+
+        assert result == SAtom(':hello')
+
     def test_simple_cond(self, interpreter: Interpreter) -> None:
         input = Symex.parse('(Cond (:true (Quote test)))')
         result = interpreter.eval(input)

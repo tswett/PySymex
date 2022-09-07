@@ -53,6 +53,10 @@ class Evaluate(StackFrame):
             _, name, params, body = self.expr.as_list
             closure = make_closure(name, params, body, self.env)
             return FrameResult(result_expr=closure)
+        elif head == SAtom('Lambda'):
+            _, params, body = self.expr.as_list
+            closure = make_closure(None, params, body, self.env)
+            return FrameResult(result_expr=closure)
         elif head == SAtom('Cond'):
             _, *cases = self.expr.as_list
             case_lists = [case.as_list for case in cases]
@@ -69,15 +73,21 @@ def atom_value(expr: Symex, env: Environment) -> Symex:
         result = env[expr.as_atom]
         return result
 
-def make_closure(name: Symex, params: Symex, body: Symex, env: Environment) -> Symex:
-    if not name.is_atom:
-        raise ValueError('function name should be an atom')
+def make_closure(name: Optional[Symex], params: Symex, body: Symex, env: Environment) -> Symex:
+    if name is None:
+        name_list = SList([])
+    else:
+        if name.is_atom:
+            name_list = SList([name])
+        else:
+            raise ValueError('function name should be an atom')
+
     if not params.is_list:
         raise ValueError('argument list should be a list')
     params_atoms = SList([param.as_atom for param in params.as_list])
 
     return SList([SAtom(':closure'),
-                    SList([name]),
+                    name_list,
                     params_atoms,
                     body,
                     env.to_symex()])
