@@ -12,9 +12,10 @@
 
 from __future__ import annotations
 
-from typing import Callable, ClassVar, Optional, Sequence
+from typing import Callable, Optional, Sequence
+from symex import types
 from symex.interpreters import Interpreter
-from symex.interpreters.common import build_function_env, evaluate_primitive, get_function_body, is_primitive
+from symex.primitives import Primitive
 
 from symex.symex import SAtom, SList, Symex
 from symex.types import Binding, Closure, Environment
@@ -117,12 +118,15 @@ def eval_in(expr: Symex, env: Environment) -> Symex:
             func, args = values[0], values[1:]
             return apply(func, args)
 
-def apply(func: Symex, args: Sequence[Symex]) -> Symex:
-    if is_primitive(func):
-        result = evaluate_primitive(func, args)
+def apply(func_expr: Symex, args: Sequence[Symex]) -> Symex:
+    func = types.Function.from_symex(func_expr)
+
+    if isinstance(func, Primitive):
+        result = func.apply(args)
+        return result
+    elif isinstance(func, Closure):
+        func_env = func.build_env(args)
+        result = Simple().eval_in(func.body, func_env)
         return result
     else:
-        body = get_function_body(func)
-        function_env = build_function_env(func, args)
-        result = Simple().eval_in(body, function_env)
-        return result
+        raise ValueError('unknown type of function')

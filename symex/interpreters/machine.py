@@ -17,9 +17,9 @@ from typing import Optional, Sequence
 
 from symex import Symex
 from symex.interpreters import Interpreter
-from symex.interpreters.common import build_function_env, evaluate_primitive, get_function_body, is_primitive
+from symex.primitives import Primitive
 from symex.symex import SAtom, SList
-from symex.types import Binding, Environment
+from symex.types import Binding, Closure, Environment, Function
 
 @dataclass(frozen=True)
 class FrameResult:
@@ -93,7 +93,7 @@ def make_closure(name: Optional[Symex], params: Symex, body: Symex, env: Environ
                     env.to_symex()])
 
 class EvaluateForCall(StackFrame):
-    def __init__(self, expr: SList, values: list[Symex], env: Environment):
+    def __init__(self, expr: SList, values: Sequence[Symex], env: Environment):
         self.expr = expr
         self.values = values
         self.env = env
@@ -105,17 +105,21 @@ class EvaluateForCall(StackFrame):
                           Evaluate(next_expr, self.env)]
             return FrameResult(new_frames=new_frames)
         else:
-            if is_primitive(self.values[0]):
-                result = evaluate_primitive(self.values[0], self.values[1:])
+            func_expr, *args = self.values
+            func = Function.from_symex(func_expr)
+
+            if isinstance(func, Primitive):
+                result = func.apply(args)
                 return FrameResult(result_expr=result)
-            else:
-                body = get_function_body(self.values[0])
-                function_env = build_function_env(self.values[0], self.values[1:])
-                new_frames = [Evaluate(body, function_env)]
+            elif isinstance(func, Closure):
+                func_env = func.build_env(args)
+                new_frames = [Evaluate(func.body, func_env)]
                 return FrameResult(new_frames=new_frames)
+            else:
+                raise ValueError('unknown type of function')
 
 class GotValueForCall(StackFrame):
-    def __init__(self, expr: SList, values: list[Symex], env: Environment):
+    def __init__(self, expr: SList, values: Sequence[Symex], env: Environment):
         self.expr = expr
         self.values = values
         self.env = env
@@ -124,11 +128,11 @@ class GotValueForCall(StackFrame):
         if new_value is None:
             raise ValueError("GotValueForCall didn't get a result")
         else:
-            new_frames = [EvaluateForCall(self.expr, self.values + [new_value], self.env)]
+            new_frames = [EvaluateForCall(self.expr, tuple(self.values) + (new_value,), self.env)]
             return FrameResult(new_frames=new_frames)
 
 class Where(StackFrame):
-    def __init__(self, body_expr: Symex, binding_exprs: list[Symex], env: Environment):
+    def __init__(self, body_expr: Symex, binding_exprs: Sequence[Symex], env: Environment):
         self.body_expr = body_expr
         self.binding_exprs = binding_exprs
         self.env = env
@@ -151,7 +155,7 @@ class Where(StackFrame):
 class GotValueForWhere(StackFrame):
     def __init__(self,
                  body_expr: Symex,
-                 binding_exprs: list[Symex],
+                 binding_exprs: Sequence[Symex],
                  env: Environment,
                  new_binding_name: SAtom):
         self.body_expr = body_expr

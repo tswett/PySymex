@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Sequence
 
 from symex.symex import SAtom, SList, Symex
 
@@ -120,3 +120,18 @@ class Closure(Function):
         params_atoms = [param.as_atom for param in params.as_list]
 
         return Closure(params_atoms, name, body, Environment.from_symex(env))
+
+    def build_env(self, args: Sequence[Symex]) -> Environment:
+        self_symex = self.to_symex()
+
+        if len(args) != len(self.params):
+            raise ValueError('closure got wrong number of arguments')
+
+        bindings = [Binding(param.as_atom, arg) for param, arg in zip(self.params, args)]
+
+        if self.name is not None:
+            bindings = [Binding(self.name, self_symex)] + bindings
+
+        new_env = self.env.extend_with(bindings)
+
+        return new_env
