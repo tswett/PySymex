@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterator, Union, overload
+from typing import Iterator, Sequence, Union, overload
 
 class Symex:
     def __bool__(self) -> bool:
@@ -44,10 +44,6 @@ class Symex:
     def is_data_atom(self) -> bool:
         raise NotImplementedError()
 
-    def apply(self, args: list[Symex]) -> Symex:
-        from symex.types import Function
-        return Function.from_symex(self).apply(args)
-
 @dataclass(frozen=True)
 class SAtom(Symex):
     text: str
@@ -76,7 +72,10 @@ class SAtom(Symex):
 
 @dataclass(frozen=True)
 class SList(Symex):
-    items: list[Symex]
+    items: tuple[Symex, ...]
+
+    def __init__(self, items: Sequence[Symex]):
+        object.__setattr__(self, 'items', tuple(items))
 
     def __bool__(self) -> bool:
         return True

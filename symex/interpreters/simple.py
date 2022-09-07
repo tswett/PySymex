@@ -12,8 +12,9 @@
 
 from __future__ import annotations
 
-from typing import Callable, ClassVar, Optional
+from typing import Callable, ClassVar, Optional, Sequence
 from symex.interpreters import Interpreter
+from symex.interpreters.common import build_function_env, evaluate_primitive, get_function_body, is_primitive
 
 from symex.symex import SAtom, SList, Symex
 from symex.types import Binding, Closure, Environment
@@ -113,18 +114,31 @@ del _builtin_form_dict
 
 class Simple(Interpreter):
     def eval_in(self, expr: Symex, env: Environment) -> Symex:
-        if expr.is_data_atom:
-            return expr
-        elif expr.is_atom:
-            return env[expr.as_atom]
-        else:
-            expr_l = expr.as_list
+        return eval_in(expr, env)
 
-            if len(expr_l) == 0:
-                raise ValueError('tried to evaluate an empty list')
-            elif expr_l[0].is_atom and (name := expr_l[0].as_atom.text) in BuiltinForms.dict:
-                return BuiltinForms.dict[name](expr_l[1:], env)
-            else:
-                values = [self.eval_in(exp, env) for exp in expr_l]
-                func, args = values[0], values[1:]
-                return func.apply(args)
+def eval_in(expr: Symex, env: Environment) -> Symex:
+    if expr.is_data_atom:
+        return expr
+    elif expr.is_atom:
+        return env[expr.as_atom]
+    else:
+        expr_l = expr.as_list
+
+        if len(expr_l) == 0:
+            raise ValueError('tried to evaluate an empty list')
+        elif expr_l[0].is_atom and (name := expr_l[0].as_atom.text) in BuiltinForms.dict:
+            return BuiltinForms.dict[name](expr_l[1:], env)
+        else:
+            values = [eval_in(exp, env) for exp in expr_l]
+            func, args = values[0], values[1:]
+            return apply(func, args)
+
+def apply(func: Symex, args: Sequence[Symex]) -> Symex:
+    if is_primitive(func):
+        result = evaluate_primitive(func, args)
+        return result
+    else:
+        body = get_function_body(func)
+        function_env = build_function_env(func, args)
+        result = Simple().eval_in(body, function_env)
+        return result

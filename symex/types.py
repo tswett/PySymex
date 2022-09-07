@@ -81,9 +81,6 @@ class Function():
         else:
             raise ValueError('not a recognizable function')
 
-    def apply(self, args: list[Symex]) -> Symex:
-        raise NotImplementedError()
-
 @dataclass(frozen=True)
 class Closure(Function):
     params: list[SAtom]
@@ -123,18 +120,3 @@ class Closure(Function):
         params_atoms = [param.as_atom for param in params.as_list]
 
         return Closure(params_atoms, name, body, Environment.from_symex(env))
-
-    def apply(self, args: list[Symex]) -> Symex:
-        from symex.interpreters.simple import Simple
-
-        if len(args) != len(self.params):
-            raise ValueError('closure got wrong number of arguments')
-
-        bindings = [Binding(param, arg) for param, arg in zip(self.params, args)]
-
-        if self.name is not None:
-            bindings = [Binding(self.name, self.to_symex())] + bindings
-
-        new_env = self.env.extend_with(bindings)
-
-        return Simple().eval_in(self.body, new_env)

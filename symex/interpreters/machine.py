@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 
 from symex import Symex
 from symex.interpreters import Interpreter
-from symex.primitives import Primitive
+from symex.interpreters.common import build_function_env, evaluate_primitive, get_function_body, is_primitive
 from symex.symex import SAtom, SList
 from symex.types import Binding, Environment
 
@@ -74,11 +74,11 @@ def make_closure(name: Symex, params: Symex, body: Symex, env: Environment) -> S
         raise ValueError('function name should be an atom')
     if not params.is_list:
         raise ValueError('argument list should be a list')
-    params_atoms = [param.as_atom for param in params.as_list]
+    params_atoms = SList([param.as_atom for param in params.as_list])
 
     return SList([SAtom(':closure'),
                     SList([name]),
-                    params,
+                    params_atoms,
                     body,
                     env.to_symex()])
 
@@ -95,8 +95,8 @@ class EvaluateForCall(StackFrame):
                           Evaluate(next_expr, self.env)]
             return FrameResult(new_frames=new_frames)
         else:
-            if is_builtin(self.values[0]):
-                result = evaluate_builtin(self.values[0], self.values[1:])
+            if is_primitive(self.values[0]):
+                result = evaluate_primitive(self.values[0], self.values[1:])
                 return FrameResult(result_expr=result)
             else:
                 body = get_function_body(self.values[0])
@@ -187,36 +187,6 @@ class GotValueForCond(StackFrame):
         else:
             new_frames = [Cond(self.remaining_cases, self.env)]
         return FrameResult(new_frames=new_frames)
-
-def is_builtin(function: Symex) -> bool:
-    return function.is_list and function.as_list[0] == SAtom(':primitive')
-
-def evaluate_builtin(function: Symex, args: list[Symex]) -> Symex:
-    builtin = Primitive.from_symex(function)
-    return builtin.apply(args)
-
-def get_function_body(function: Symex) -> Symex:
-    _head, _name, _params, body, _env = function.as_list
-    return body
-
-def build_function_env(function: Symex, args: list[Symex]) -> Environment:
-    _head, name_list, params, _body, env_expr = function.as_list
-
-    params = params.as_list
-    env = Environment.from_symex(env_expr)
-
-    if len(args) != len(params):
-        raise ValueError('closure got wrong number of arguments')
-
-    bindings = [Binding(param.as_atom, arg) for param, arg in zip(params, args)]
-
-    if len(name_list.as_list) > 0:
-        name, = name_list.as_list
-        bindings = [Binding(name.as_atom, function)] + bindings
-
-    new_env = env.extend_with(bindings)
-
-    return new_env
 
 class Machine(Interpreter):
     def eval_in(self, expr: Symex, env: Environment) -> Symex:

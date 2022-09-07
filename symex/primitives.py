@@ -13,12 +13,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 from symex.symex import SAtom, SList, Symex
 from symex.types import Binding, Environment, Function
 
-SFunction = Callable[[list[Symex]], Symex]
+SFunction = Callable[[Sequence[Symex]], Symex]
 
 primitive_dict: dict[str, SFunction] = {}
 primitive_env = Environment([])
@@ -46,7 +46,7 @@ class Primitive(Function):
     def func(self) -> SFunction:
         return primitive_dict[self.name.text]
 
-    def apply(self, args: list[Symex]) -> Symex:
+    def apply(self, args: Sequence[Symex]) -> Symex:
         return self.func(args)
 
 def primitive_func(name: Optional[str] = None) -> Callable[[SFunction], SFunction]:
@@ -62,7 +62,7 @@ def primitive_func(name: Optional[str] = None) -> Callable[[SFunction], SFunctio
     return decorator
 
 @primitive_func()
-def Not(args: list[Symex]) -> Symex:
+def Not(args: Sequence[Symex]) -> Symex:
     x, = args
     if x == SAtom(':false'):
         return SAtom(':true')
@@ -70,7 +70,7 @@ def Not(args: list[Symex]) -> Symex:
         return SAtom(':false')
 
 @primitive_func('=')
-def Equal(args: list[Symex]) -> Symex:
+def Equal(args: Sequence[Symex]) -> Symex:
     if len(args) == 0:
         return SAtom(':true')
 
@@ -81,30 +81,30 @@ def Equal(args: list[Symex]) -> Symex:
     return SAtom(':true')
 
 @primitive_func()
-def Cons(args: list[Symex]) -> Symex:
+def Cons(args: Sequence[Symex]) -> Symex:
     head, tail = args
-    return SList([head] + tail.as_list.items)
+    return SList((head,) + tail.as_list.items)
 
 @primitive_func()
-def Head(args: list[Symex]) -> Symex:
+def Head(args: Sequence[Symex]) -> Symex:
     list, = args
     return list.as_list[0]
 
 @primitive_func()
-def Tail(args: list[Symex]) -> Symex:
+def Tail(args: Sequence[Symex]) -> Symex:
     list, = args
     return list.as_list[1:]
 
 @primitive_func()
-def List(args: list[Symex]) -> Symex:
+def List(args: Sequence[Symex]) -> Symex:
     return SList(args)
 
 @primitive_func()
-def Error(args: list[Symex]) -> Symex:
+def Error(args: Sequence[Symex]) -> Symex:
     raise ValueError(f'Symex error: {args[0]}')
 
 @primitive_func('Is-Data-Atom')
-def IsDataAtom(args: list[Symex]) -> Symex:
+def IsDataAtom(args: Sequence[Symex]) -> Symex:
     x, = args
     if x.is_data_atom:
         return SAtom(':true')
