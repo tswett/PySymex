@@ -49,14 +49,19 @@ class Primitive(Function):
     def apply(self, args: Sequence[Symex]) -> Symex:
         return self.func(args)
 
+def add_primitive(name: str, value: Symex) -> None:
+    new_binding = Binding(SAtom(name), value)
+
+    global primitive_env
+    primitive_env = Environment(primitive_env.bindings + [new_binding])
+
 def primitive_func(name: Optional[str] = None) -> Callable[[SFunction], SFunction]:
     def decorator(func: SFunction) -> SFunction:
         name_ = name or func.__name__
-        new_binding = Binding(SAtom(name_), SList([SAtom(':primitive'), SAtom(name_)]))
+        value = SList([SAtom(':primitive'), SAtom(name_)])
 
         primitive_dict[name_] = func
-        global primitive_env
-        primitive_env = Environment(primitive_env.bindings + [new_binding])
+        add_primitive(name_, value)
 
         return func
     return decorator
@@ -110,3 +115,5 @@ def IsDataAtom(args: Sequence[Symex]) -> Symex:
         return SAtom(':true')
     else:
         return SAtom(':false')
+
+add_primitive('Nil', SList([]))

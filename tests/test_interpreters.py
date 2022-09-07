@@ -97,8 +97,8 @@ class TestInterpreters:
         input = Symex.parse('''
             (Where (Laugh (List :one :two :three :four :five))
                 (Laugh (Function Laugh (list)
-                    (Cond ((= list (List))
-                            (List))
+                    (Cond ((= list Nil)
+                            Nil)
                         (:true
                             (Cons :ha (Laugh (Tail list))))))))
         ''')
