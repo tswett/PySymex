@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from symex import Symex
 from symex.interpreters import Interpreter
@@ -42,29 +42,53 @@ class Evaluate(StackFrame):
 
         head = self.expr.as_list[0]
 
-        if head == SAtom('Quote'):
-            _, quoted_expr = self.expr.as_list
-            return FrameResult(result_expr=quoted_expr)
-        elif head == SAtom('Where'):
-            _, body_expr, *binding_exprs = self.expr.as_list
-            new_frames: list[StackFrame] = [Where(body_expr, binding_exprs, self.env)]
-            return FrameResult(new_frames=new_frames)
-        elif head == SAtom('Function'):
-            _, name, params, body = self.expr.as_list
-            closure = make_closure(name, params, body, self.env)
-            return FrameResult(result_expr=closure)
-        elif head == SAtom('Lambda'):
-            _, params, body = self.expr.as_list
-            closure = make_closure(None, params, body, self.env)
-            return FrameResult(result_expr=closure)
-        elif head == SAtom('Cond'):
-            _, *cases = self.expr.as_list
-            case_lists = [case.as_list for case in cases]
-            new_frames = [Cond(case_lists, self.env)]
-            return FrameResult(new_frames=new_frames)
+        if head.is_atom and (name := head.as_atom.text) in _builtin_form_dict:
+            arg_exprs = self.expr.as_list[1:]
+            return _builtin_form_dict[name](arg_exprs, self.env)
         else:
             new_frames = [EvaluateForCall(self.expr.as_list, [], self.env)]
             return FrameResult(new_frames=new_frames)
+
+SBuiltin = Callable[[SList, Environment], FrameResult]
+
+_builtin_form_dict: dict[str, SBuiltin] = {}
+
+def builtin_form(name: Optional[str] = None) -> Callable[[SBuiltin], SBuiltin]:
+    def decorator(func: SBuiltin) -> SBuiltin:
+        _builtin_form_dict[name or func.__name__] = func
+
+        return func
+
+    return decorator
+
+@builtin_form()
+def Quote(arg_exprs: SList, env: Environment) -> FrameResult:
+    quoted_expr, = arg_exprs
+    return FrameResult(result_expr=quoted_expr)
+
+@builtin_form('Where')
+def Where_(arg_exprs: SList, env: Environment) -> FrameResult:
+    body_expr, *binding_exprs = arg_exprs
+    new_frames: list[StackFrame] = [Where(body_expr, binding_exprs, env)]
+    return FrameResult(new_frames=new_frames)
+
+@builtin_form('Function')
+def Function_(arg_exprs: SList, env: Environment) -> FrameResult:
+    name, params, body = arg_exprs
+    closure = make_closure(name, params, body, env)
+    return FrameResult(result_expr=closure)
+
+@builtin_form()
+def Lambda(arg_exprs: SList, env: Environment) -> FrameResult:
+    params, body = arg_exprs
+    closure = make_closure(None, params, body, env)
+    return FrameResult(result_expr=closure)
+
+@builtin_form('Cond')
+def Cond_(arg_exprs: SList, env: Environment) -> FrameResult:
+    case_lists = [case.as_list for case in arg_exprs]
+    new_frames = [Cond(case_lists, env)]
+    return FrameResult(new_frames=new_frames)
 
 def atom_value(expr: Symex, env: Environment) -> Symex:
     if expr.is_data_atom:

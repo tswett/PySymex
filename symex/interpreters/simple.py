@@ -13,12 +13,11 @@
 from __future__ import annotations
 
 from typing import Callable, Optional, Sequence
-from symex import types
 from symex.interpreters import Interpreter
 from symex.primitives import Primitive
 
 from symex.symex import SAtom, SList, Symex
-from symex.types import Binding, Closure, Environment
+from symex.types import Binding, Closure, Environment, Function
 
 SBuiltin = Callable[[SList, Environment], Symex]
 
@@ -46,8 +45,8 @@ def Lambda(arg_exprs: SList, env: Environment) -> Symex:
 
     return Closure(params_atoms, None, body, env).to_symex()
 
-@builtin_form()
-def Function(arg_exprs: SList, env: Environment) -> Symex:
+@builtin_form('Function')
+def Function_(arg_exprs: SList, env: Environment) -> Symex:
     name, params, body = arg_exprs
     if not name.is_atom:
         raise ValueError('function name should be an atom')
@@ -119,7 +118,7 @@ def eval_in(expr: Symex, env: Environment) -> Symex:
             return apply(func, args)
 
 def apply(func_expr: Symex, args: Sequence[Symex]) -> Symex:
-    func = types.Function.from_symex(func_expr)
+    func = Function.from_symex(func_expr)
 
     if isinstance(func, Primitive):
         result = func.apply(args)
