@@ -16,19 +16,6 @@ from symex.interpreters import Interpreter
 from symex.symex import SAtom, SList, Symex
 from symex.types import Binding, Closure, Environment
 
-# TODO eliminate duplication of make_closure between simple_builtins and machine_builtins
-def make_closure(params: SList, name: Optional[SAtom], body: Symex, env: Environment) -> Symex:
-    def assert_atom(param: Symex) -> SAtom:
-        match param:
-            case SAtom():
-                return param
-            case _:
-                raise ValueError("this parameter isn't an atom")
-    
-    params_atoms = tuple((assert_atom(param) for param in params))
-
-    return Closure(params_atoms, name, body, env).to_symex()
-
 SBuiltin = Callable[[Sequence[Symex], Environment], Symex]
 
 builtins: dict[str, SBuiltin] = {}
@@ -54,8 +41,8 @@ def Quote(arg_exprs: Sequence[Symex], env: Environment) -> Symex:
 def Lambda(arg_exprs: Sequence[Symex], env: Environment) -> Symex:
     match arg_exprs:
         case (SList() as params, body):
-            closure = make_closure(params, None, body, env)
-            return closure
+            closure = Closure.from_defining_parts(params, None, body, env)
+            return closure.to_symex()
         case _:
             raise ValueError("this isn't a well-formed Lambda expression")
 
@@ -63,8 +50,8 @@ def Lambda(arg_exprs: Sequence[Symex], env: Environment) -> Symex:
 def Function_(arg_exprs: Sequence[Symex], env: Environment) -> Symex:
     match arg_exprs:
         case (SAtom() as name, SList() as params, body):
-            closure = make_closure(params, name, body, env)
-            return closure
+            closure = Closure.from_defining_parts(params, name, body, env)
+            return closure.to_symex()
         case _:
             raise ValueError("this isn't a well-formed Function expression")
 

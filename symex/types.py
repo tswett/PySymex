@@ -135,6 +135,22 @@ class Closure(Function):
 
         return Closure(params_atoms, name, body, Environment.from_symex(env))
 
+    @staticmethod
+    def from_defining_parts(params: SList,
+                            name: Optional[SAtom],
+                            body: Symex,
+                            env: Environment) -> Closure:
+        def assert_atom(param: Symex) -> SAtom:
+            match param:
+                case SAtom():
+                    return param
+                case _:
+                    raise ValueError("this parameter isn't an atom")
+        
+        params_atoms = tuple((assert_atom(param) for param in params))
+
+        return Closure(params_atoms, name, body, env)
+
     def build_env(self, args: Sequence[Symex]) -> Environment:
         self_symex = self.to_symex()
 

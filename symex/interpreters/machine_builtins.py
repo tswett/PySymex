@@ -16,19 +16,6 @@ from symex.interpreters.machine_frames import FrameResult, StackFrame
 from symex.symex import SAtom, SList, Symex
 from symex.types import Binding, Closure, Environment
 
-# TODO eliminate duplication of make_closure between simple_builtins and machine_builtins
-def make_closure(params: SList, name: Optional[SAtom], body: Symex, env: Environment) -> Symex:
-    def assert_atom(param: Symex) -> SAtom:
-        match param:
-            case SAtom():
-                return param
-            case _:
-                raise ValueError("this parameter isn't an atom")
-    
-    params_atoms = tuple((assert_atom(param) for param in params))
-
-    return Closure(params_atoms, name, body, env).to_symex()
-
 SBuiltin = Callable[[SList, Environment], FrameResult]
 
 builtins: dict[str, SBuiltin] = {}
@@ -50,8 +37,8 @@ def Quote(arg_exprs: SList, env: Environment) -> FrameResult:
 def Lambda(arg_exprs: SList, env: Environment) -> FrameResult:
     match arg_exprs:
         case SList((SList() as params, body)):
-            closure = make_closure(params, None, body, env)
-            return FrameResult(result_expr=closure)
+            closure = Closure.from_defining_parts(params, None, body, env)
+            return FrameResult(result_expr=closure.to_symex())
         case _:
             raise ValueError("this isn't a well-formed Lambda expression")
 
@@ -59,8 +46,8 @@ def Lambda(arg_exprs: SList, env: Environment) -> FrameResult:
 def Function_(arg_exprs: SList, env: Environment) -> FrameResult:
     match arg_exprs:
         case SList((SAtom() as name, SList() as params, body)):
-            closure = make_closure(params, name, body, env)
-            return FrameResult(result_expr=closure)
+            closure = Closure.from_defining_parts(params, name, body, env)
+            return FrameResult(result_expr=closure.to_symex())
         case _:
             raise ValueError("this isn't a well-formed Function expression")
 
