@@ -17,7 +17,7 @@ from typing import Sequence
 from symex.interpreters import Interpreter
 from symex.interpreters.simple_builtins import builtins
 from symex.primitives import Primitive
-from symex.symex import Symex
+from symex.symex import SAtom, SList, Symex
 from symex.types import Closure, Environment, Function
 
 class Simple(Interpreter):
@@ -25,21 +25,23 @@ class Simple(Interpreter):
         return eval_in(expr, env)
 
 def eval_in(expr: Symex, env: Environment) -> Symex:
-    if expr.is_data_atom:
-        return expr
-    elif expr.is_atom:
-        return env[expr.as_atom]
-    else:
-        expr_l = expr.as_list
-
-        if len(expr_l) == 0:
+    match expr:
+        case _ if expr.is_data_atom:
+            return expr
+        case SAtom():
+            return env[expr]
+        case SList(()):
             raise ValueError('tried to evaluate an empty list')
-        elif expr_l[0].is_atom and (name := expr_l[0].as_atom.text) in builtins:
-            return builtins[name](expr_l[1:], env)
-        else:
-            values = [eval_in(exp, env) for exp in expr_l]
+        case SList((SAtom(name), *arg_exprs)) if name in builtins:
+            return builtins[name](arg_exprs, env)
+        case SList(symexes):
+            values = [eval_in(exp, env) for exp in symexes]
             func, args = values[0], values[1:]
             return apply(func, args)
+        case _:
+            raise ValueError('unknown type of symex')
+
+    raise ValueError('no pattern matched')
 
 def apply(func_expr: Symex, args: Sequence[Symex]) -> Symex:
     func = Function.from_symex(func_expr)

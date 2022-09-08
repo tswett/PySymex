@@ -25,22 +25,6 @@ class Symex:
         return SymexParser.parse(text)
 
     @property
-    def is_list(self) -> bool:
-        raise NotImplementedError()
-
-    @property
-    def as_list(self) -> SList:
-        raise NotImplementedError()
-
-    @property
-    def is_atom(self) -> bool:
-        return not self.is_list
-
-    @property
-    def as_atom(self) -> SAtom:
-        raise NotImplementedError()
-
-    @property
     def is_data_atom(self) -> bool:
         raise NotImplementedError()
 
@@ -53,18 +37,6 @@ class SAtom(Symex):
 
     def __str__(self) -> str:
         return self.text
-
-    @property
-    def is_list(self) -> bool:
-        return False
-
-    @property
-    def as_list(self) -> SList:
-        raise ValueError("this is an atom, not a list")
-
-    @property
-    def as_atom(self) -> SAtom:
-        return self
 
     @property
     def is_data_atom(self) -> bool:
@@ -102,18 +74,6 @@ class SList(Symex):
 
     def __str__(self) -> str:
         return '(' + ' '.join([str(item) for item in self.items]) + ')'
-
-    @property
-    def is_list(self) -> bool:
-        return True
-
-    @property
-    def as_list(self) -> SList:
-        return self
-
-    @property
-    def as_atom(self) -> SAtom:
-        raise ValueError('this is a list, not an atom')
 
     @property
     def is_data_atom(self) -> bool:

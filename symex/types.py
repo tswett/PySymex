@@ -40,10 +40,13 @@ class Environment():
 
     @staticmethod
     def from_symex(symex: Symex) -> Environment:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as an environment')
-
-        return Environment([Binding.from_symex(binding) for binding in symex.as_list])
+        match symex:
+            case SAtom(_):
+                raise ValueError('tried to treat an atom as an environment')
+            case SList(list):
+                return Environment([Binding.from_symex(binding) for binding in list])
+            case _:
+                raise ValueError('unknown type of symex')
 
     def extend_with(self, new_bindings: list[Binding]) -> Environment:
         return Environment(new_bindings + self.bindings)
@@ -58,32 +61,31 @@ class Binding():
 
     @staticmethod
     def from_symex(symex: Symex) -> Binding:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as a binding')
-
-        name, value = symex.as_list
-
-        return Binding(name.as_atom, value)
+        match symex:
+            case SAtom():
+                raise ValueError('tried to treat an atom as a binding')
+            case SList((SAtom() as name, value)):
+                return Binding(name, value)
+            case _:
+                raise ValueError('not a well-formed binding')
 
 class Function():
     @staticmethod
     def from_symex(symex: Symex) -> Function:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as a function')
-
-        symex = symex.as_list
-
-        if symex[0] == SAtom(':closure'):
-            return Closure.from_symex(symex)
-        elif symex[0] == SAtom(':primitive'):
-            from symex.primitives import Primitive
-            return Primitive.from_symex(symex)
-        else:
-            raise ValueError('not a recognizable function')
+        match symex:
+            case SAtom():
+                raise ValueError('tried to treat an atom as a function')
+            case SList((SAtom(':closure'), *_)):
+                return Closure.from_symex(symex)
+            case SList((SAtom(':primitive'), *_)):
+                from symex.primitives import Primitive
+                return Primitive.from_symex(symex)
+            case _:
+                raise ValueError('not a recognizable function')
 
 @dataclass(frozen=True)
 class Closure(Function):
-    params: list[SAtom]
+    params: Sequence[SAtom] # TODO: should be tuple
     name: Optional[SAtom]
     body: Symex
     env: Environment
@@ -102,22 +104,34 @@ class Closure(Function):
 
     @staticmethod
     def from_symex(symex: Symex) -> Closure:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as a closure')
+        match symex:
+            case SAtom(_):
+                raise ValueError('this is an atom, not a closure')
+            case SList((SAtom(':closure'), SList(name_list), SList(params), body, env)):
+                pass
+            case SList((SAtom(':closure'), *_)):
+                raise ValueError("this closure isn't well-formed")
+            case _:
+                raise ValueError("this isn't a closure")
 
-        tag, name_list, params, body, env = symex.as_list
+        name: Optional[SAtom]
 
-        if tag != SAtom(':closure'):
-            raise ValueError("this list isn't a closure")
+        match name_list:
+            case (SAtom() as name,):
+                pass
+            case ():
+                name = None
+            case _:
+                raise ValueError("this closure's name list isn't well-formed")
 
-        name_list = name_list.as_list
-        if len(name_list) == 0:
-            name = None
-        else:
-            name_symex, = name_list
-            name = name_symex.as_atom
+        def assert_atom(param: Symex) -> SAtom:
+            match param:
+                case SAtom():
+                    return param
+                case _:
+                    raise ValueError("this parameter isn't an atom")
 
-        params_atoms = [param.as_atom for param in params.as_list]
+        params_atoms = tuple(assert_atom(param) for param in params)
 
         return Closure(params_atoms, name, body, Environment.from_symex(env))
 
@@ -127,7 +141,7 @@ class Closure(Function):
         if len(args) != len(self.params):
             raise ValueError('closure got wrong number of arguments')
 
-        bindings = [Binding(param.as_atom, arg) for param, arg in zip(self.params, args)]
+        bindings = [Binding(param, arg) for param, arg in zip(self.params, args)]
 
         if self.name is not None:
             bindings = [Binding(self.name, self_symex)] + bindings

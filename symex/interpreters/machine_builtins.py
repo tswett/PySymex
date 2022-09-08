@@ -14,26 +14,20 @@ from typing import Callable, Optional, Sequence
 
 from symex.interpreters.machine_frames import FrameResult, StackFrame
 from symex.symex import SAtom, SList, Symex
-from symex.types import Binding, Environment
+from symex.types import Binding, Closure, Environment
 
-def make_closure(name: Optional[Symex], params: Symex, body: Symex, env: Environment) -> Symex:
-    if name is None:
-        name_list = SList([])
-    else:
-        if name.is_atom:
-            name_list = SList([name])
-        else:
-            raise ValueError('function name should be an atom')
+# TODO eliminate duplication of make_closure between simple_builtins and machine_builtins
+def make_closure(params: SList, name: Optional[SAtom], body: Symex, env: Environment) -> Symex:
+    def assert_atom(param: Symex) -> SAtom:
+        match param:
+            case SAtom():
+                return param
+            case _:
+                raise ValueError("this parameter isn't an atom")
+    
+    params_atoms = tuple((assert_atom(param) for param in params))
 
-    if not params.is_list:
-        raise ValueError('argument list should be a list')
-    params_atoms = SList([param.as_atom for param in params.as_list])
-
-    return SList([SAtom(':closure'),
-                    name_list,
-                    params_atoms,
-                    body,
-                    env.to_symex()])
+    return Closure(params_atoms, name, body, env).to_symex()
 
 SBuiltin = Callable[[SList, Environment], FrameResult]
 
@@ -54,19 +48,31 @@ def Quote(arg_exprs: SList, env: Environment) -> FrameResult:
 
 @builtin_form()
 def Lambda(arg_exprs: SList, env: Environment) -> FrameResult:
-    params, body = arg_exprs
-    closure = make_closure(None, params, body, env)
-    return FrameResult(result_expr=closure)
+    match arg_exprs:
+        case SList((SList() as params, body)):
+            closure = make_closure(params, None, body, env)
+            return FrameResult(result_expr=closure)
+        case _:
+            raise ValueError("this isn't a well-formed Lambda expression")
 
 @builtin_form('Function')
 def Function_(arg_exprs: SList, env: Environment) -> FrameResult:
-    name, params, body = arg_exprs
-    closure = make_closure(name, params, body, env)
-    return FrameResult(result_expr=closure)
+    match arg_exprs:
+        case SList((SAtom() as name, SList() as params, body)):
+            closure = make_closure(params, name, body, env)
+            return FrameResult(result_expr=closure)
+        case _:
+            raise ValueError("this isn't a well-formed Function expression")
 
 @builtin_form('Cond')
 def Cond_(arg_exprs: SList, env: Environment) -> FrameResult:
-    case_lists = [case.as_list for case in arg_exprs]
+    def assert_list(symex: Symex) -> SList:
+        if isinstance(symex, SList):
+            return symex
+        else:
+            raise ValueError("this Cond condition isn't a list")
+
+    case_lists = [assert_list(case) for case in arg_exprs]
     new_frames = [Cond(case_lists, env)]
     return FrameResult(new_frames=new_frames)
 
@@ -82,7 +88,7 @@ class Cond(StackFrame):
             raise ValueError('none of the conditions were true')
 
         first_case, *remaining_cases = self.cases
-        condition, outcome = first_case.as_list
+        condition, outcome = first_case
         new_frames = [GotValueForCond(outcome, remaining_cases, self.env),
                       Evaluate(condition, self.env)]
         return FrameResult(new_frames=new_frames)
@@ -119,19 +125,21 @@ class Where(StackFrame):
     def call(self, _: Optional[Symex]) -> FrameResult:
         from symex.interpreters.machine import Evaluate
 
-        if len(self.binding_exprs) == 0:
-            new_frames: list[StackFrame] = [Evaluate(self.body_expr, self.env)]
-            return FrameResult(new_frames=new_frames)
-        else:
-            first_binding_expr, *remaining_binding_exprs = self.binding_exprs
-            name, value_expr = first_binding_expr.as_list
-            name = name.as_atom
-            new_frames = [GotValueForWhere(self.body_expr,
-                                           remaining_binding_exprs,
-                                           self.env,
-                                           name),
-                          Evaluate(value_expr, self.env)]
-            return FrameResult(new_frames=new_frames)
+        match self.binding_exprs:
+            case ():
+                new_frames: list[StackFrame] = [Evaluate(self.body_expr, self.env)]
+                return FrameResult(new_frames=new_frames)
+
+            case (SList((SAtom() as name, value_expr)), *remaining_binding_exprs):
+                new_frames = [GotValueForWhere(self.body_expr,
+                                               remaining_binding_exprs,
+                                               self.env,
+                                               name),
+                              Evaluate(value_expr, self.env)]
+                return FrameResult(new_frames=new_frames)
+
+            case _:
+                raise ValueError('not a well-formed Where expression')
 
 class GotValueForWhere(StackFrame):
     def __init__(self,

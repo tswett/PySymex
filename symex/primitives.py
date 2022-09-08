@@ -32,15 +32,13 @@ class Primitive(Function):
 
     @staticmethod
     def from_symex(symex: Symex) -> Primitive:
-        if symex.is_atom:
-            raise ValueError('tried to treat an atom as a primitive function')
-        
-        tag, name = symex.as_list
-
-        if tag != SAtom(':primitive'):
-            raise ValueError("this list isn't a primitive function")
-
-        return Primitive(name.as_atom)
+        match symex:
+            case SList((SAtom(':primitive'), SAtom() as name)):
+                return Primitive(name)
+            case SList((SAtom(':primitive'), *_)):
+                raise ValueError("this is an ill-formed primitive function")
+            case _:
+                raise ValueError("this isn't a primitive function")
 
     @property
     def func(self) -> SFunction:
@@ -87,18 +85,45 @@ def Equal(args: Sequence[Symex]) -> Symex:
 
 @primitive_func()
 def Cons(args: Sequence[Symex]) -> Symex:
-    head, tail = args
-    return SList((head,) + tail.as_list.items)
+    match args:
+        case (head, SList(tail)):
+            return SList((head,) + tail)
+        case (_, _):
+            raise ValueError("the Cons function got something that isn't a list")
+        case _:
+            raise ValueError("the Cons function got the wrong number of arguments")
 
 @primitive_func()
 def Head(args: Sequence[Symex]) -> Symex:
-    list, = args
-    return list.as_list[0]
+    match args:
+        case (arg,):
+            match arg:
+                case SList((head, *_)):
+                    return head
+                case SList(()):
+                    raise ValueError("the Head function got an empty list")
+                case _:
+                    raise ValueError("the Head function got something that isn't a list")
+        case ():
+            raise ValueError("the Head function didn't get any arguments")
+        case _:
+            raise ValueError("the Head function got too many arguments")
 
 @primitive_func()
 def Tail(args: Sequence[Symex]) -> Symex:
-    list, = args
-    return list.as_list[1:]
+    match args:
+        case (arg,):
+            match arg:
+                case SList((_, *tail)):
+                    return SList(tail)
+                case SList(()):
+                    raise ValueError("the Tail function got an empty list")
+                case _:
+                    raise ValueError("the Tail function got something that isn't a list")
+        case ():
+            raise ValueError("the Tail function didn't get any arguments")
+        case _:
+            raise ValueError("the Tail function got too many arguments")
 
 @primitive_func()
 def List(args: Sequence[Symex]) -> Symex:

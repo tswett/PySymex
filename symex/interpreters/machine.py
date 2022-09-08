@@ -19,7 +19,7 @@ from symex.interpreters import Interpreter
 from symex.interpreters.machine_builtins import builtins
 from symex.interpreters.machine_frames import FrameResult, StackFrame
 from symex.primitives import Primitive
-from symex.symex import SList
+from symex.symex import SAtom, SList
 from symex.types import Closure, Environment, Function
 
 class Evaluate(StackFrame):
@@ -28,24 +28,25 @@ class Evaluate(StackFrame):
         self.env = env
 
     def call(self, _: Optional[Symex]) -> FrameResult:
-        if self.expr.is_atom:
-            value = atom_value(self.expr, self.env)
-            return FrameResult(result_expr=value)
+        match self.expr:
+            case SAtom() as atom:
+                value = atom_value(atom, self.env)
+                return FrameResult(result_expr=value)
+            case SList((SAtom(name), *arg_exprs)) if name in builtins:
+                return builtins[name](SList(arg_exprs), self.env)
+            case SList() as list:
+                new_frames = [EvaluateForCall(list, [], self.env)]
+                return FrameResult(new_frames=new_frames)
+            case _:
+                raise ValueError('unknown type of symex')
 
-        head = self.expr.as_list[0]
+        raise ValueError('no pattern matched')
 
-        if head.is_atom and (name := head.as_atom.text) in builtins:
-            arg_exprs = self.expr.as_list[1:]
-            return builtins[name](arg_exprs, self.env)
-        else:
-            new_frames = [EvaluateForCall(self.expr.as_list, [], self.env)]
-            return FrameResult(new_frames=new_frames)
-
-def atom_value(expr: Symex, env: Environment) -> Symex:
+def atom_value(expr: SAtom, env: Environment) -> Symex:
     if expr.is_data_atom:
         return expr
     else:
-        result = env[expr.as_atom]
+        result = env[expr]
         return result
 
 class EvaluateForCall(StackFrame):
@@ -64,15 +65,16 @@ class EvaluateForCall(StackFrame):
             func_expr, *args = self.values
             func = Function.from_symex(func_expr)
 
-            if isinstance(func, Primitive):
-                result = func.apply(args)
-                return FrameResult(result_expr=result)
-            elif isinstance(func, Closure):
-                func_env = func.build_env(args)
-                new_frames = [Evaluate(func.body, func_env)]
-                return FrameResult(new_frames=new_frames)
-            else:
-                raise ValueError('unknown type of function')
+            match func:
+                case Primitive():
+                    result = func.apply(args)
+                    return FrameResult(result_expr=result)
+                case Closure():
+                    func_env = func.build_env(args)
+                    new_frames = [Evaluate(func.body, func_env)]
+                    return FrameResult(new_frames=new_frames)
+                case _:
+                    raise ValueError('unknown type of function')
 
 class GotValueForCall(StackFrame):
     def __init__(self, expr: SList, values: Sequence[Symex], env: Environment):
