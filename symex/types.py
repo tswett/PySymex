@@ -85,7 +85,7 @@ class Function():
 
 @dataclass(frozen=True)
 class Closure(Function):
-    params: Sequence[SAtom] # TODO: should be tuple
+    params: tuple[SAtom, ...]
     name: Optional[SAtom]
     body: Symex
     env: Environment
