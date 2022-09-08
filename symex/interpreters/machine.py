@@ -14,12 +14,11 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from symex import Symex
 from symex.interpreters import Interpreter
 from symex.interpreters.machine_builtins import builtins
 from symex.interpreters.machine_frames import FrameResult, StackFrame
 from symex.primitives import Primitive
-from symex.symex import SAtom, SList
+from symex.symex import SAtom, SList, Symex
 from symex.types import Closure, Environment, Function
 
 class Evaluate(StackFrame):
