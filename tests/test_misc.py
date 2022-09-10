@@ -10,7 +10,7 @@
 #
 # Copyright 2022 by Tanner Swett.
 
-from symex import SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex
 
 def test_can_parse_an_atom() -> None:
     result = Symex.parse('test')

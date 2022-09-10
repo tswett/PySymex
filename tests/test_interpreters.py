@@ -12,7 +12,7 @@
 
 import pytest
 
-from symex import SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex
 from symex.interpreters import Interpreter
 from symex.interpreters.machine import Machine
 from symex.interpreters.simple import Simple

@@ -10,12 +10,20 @@
 #
 # Copyright 2022 by Tanner Swett.
 
+"""Fundamental Symex types
+
+This module defines three types. The basic type is `Symex`, which represents a
+symbolic expression (S-expression). There are two types of `Symex`: an `SAtom`
+is an atom (basically just a string), and an `SList` is a list.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterator, Sequence, Union, overload
 
 class Symex:
+    """A symbolic expression"""
     def __bool__(self) -> bool:
         raise NotImplementedError()
 
@@ -30,6 +38,7 @@ class Symex:
 
 @dataclass(frozen=True)
 class SAtom(Symex):
+    """An S-expression which is an atom"""
     text: str
 
     def __bool__(self) -> bool:
@@ -44,6 +53,7 @@ class SAtom(Symex):
 
 @dataclass(frozen=True)
 class SList(Symex):
+    """An S-expression which is a linked list"""
     items: tuple[Symex, ...]
 
     def __init__(self, items: Sequence[Symex]):
