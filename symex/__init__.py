@@ -12,7 +12,9 @@
 
 """This is an experimental implementation of Lisp.
 
-This language is purely functional, and it always will be. So far, there is no `define` or `def` form, since it's not quite obvious how to implement such a thing in a purely functional language.
+This language is purely functional, and it always will be. So far, there is no
+`define` or `def` form, since it's not quite obvious how to implement such a
+thing in a purely functional language.
 
 Here's a simple example of this language:
 
@@ -26,6 +28,8 @@ Here's a simple example of this language:
 ```
 
 This evaluates to `(:ha :ha :ha :ha :ha)`.
+
+Despite the etymology, "symex" is pronounced /ˈsaɪmɛks/ (sigh-mex).
 
 ## Trying it out
 
@@ -58,12 +62,12 @@ which should return the string `((here there) (these those))`.
 
 The general organization of the code is:
 
-* `symex` – fundamental data types (S-expressions, lists, and atoms)
-* `types` – some more complex types that are used by the interpreters
-* `primitives` – some functions which operate on S-expressions, and are exposed
+* `symex.symex` – fundamental data types (S-expressions, lists, and atoms)
+* `symex.types` – some more complex types that are used by the interpreters
+* `symex.primitives` – some functions which operate on S-expressions, and are exposed
   to the Lisp programmer as primitives
-* `parsing` – the parser
-* `interpreters` – some interpreters, which actually evaluate expressions
+* `symex.parsing` – the parser
+* `symex.interpreters` – some interpreters, which actually evaluate expressions
 """
 
 __all__ = ['interpreters', 'parsing', 'primitives', 'symex', 'types']

@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from symex.interpreters import Interpreter
-from symex.interpreters.simple_builtins import builtins
+from symex.interpreters.simple.builtins import builtins
 from symex.primitives import Primitive
 from symex.symex import SAtom, SList, Symex
 from symex.types import Closure, Environment, Function

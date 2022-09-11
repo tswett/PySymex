@@ -12,7 +12,7 @@
 
 from typing import Callable, Optional, Sequence
 
-from symex.interpreters.machine_frames import FrameResult, StackFrame
+from symex.interpreters.machine.frames import FrameResult, StackFrame
 from symex.symex import SAtom, SList, Symex
 from symex.types import Binding, Closure, Environment
 
