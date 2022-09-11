@@ -10,6 +10,30 @@
 #
 # Copyright 2022 by Tanner Swett.
 
+"""Complex types for Lisp
+
+This module defines a handful of complex types that are used by the
+interpreters.
+
+One of the principles of this version of Lisp is that everything is either an
+atom or a list. As a result, all of these complex types appear to the Lisp
+programmer as lists. But that raises the question of exactly how we should
+accomplish the goal of making complex objects appear as lists.
+
+Suppose that there is some type of complex object called a "widget". Three ways
+of implementing widgets come to mind:
+
+* A widget is no more or less than a list that has a particular structure, and
+  so converting it to a list is never necessary.
+* A widget is implemented as a Python object, and widgets are frequently
+  converted back and forth between lists and Python objects as necessary.
+* A widget is a Python object, but it pretends to be a list, so that it is never
+  necessary to convert widgets into actual lists.
+
+The current implementation uses the second option, but the third option is
+probably better.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -19,6 +43,7 @@ from symex.symex import SAtom, SList, Symex
 
 @dataclass(frozen=True)
 class Environment():
+    """A dictionary from variable names to values"""
     bindings: list[Binding] = field(default_factory=list)
 
     def __contains__(self, name: SAtom) -> bool:
@@ -53,6 +78,7 @@ class Environment():
 
 @dataclass(frozen=True)
 class Binding():
+    """A variable name and an associated value"""
     name: SAtom
     value: Symex
 
@@ -70,6 +96,7 @@ class Binding():
                 raise ValueError('not a well-formed binding')
 
 class Function():
+    """Any kind of Lisp function (abstract class)"""
     @staticmethod
     def from_symex(symex: Symex) -> Function:
         match symex:
@@ -85,6 +112,7 @@ class Function():
 
 @dataclass(frozen=True)
 class Closure(Function):
+    """A Lisp function with a body written in Lisp"""
     params: tuple[SAtom, ...]
     name: Optional[SAtom]
     body: Symex
