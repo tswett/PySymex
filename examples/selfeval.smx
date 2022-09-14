@@ -10,11 +10,268 @@
 ;
 ; Copyright 2022 by Tanner Swett.
 
-; This is intended to be a full self-interpreter eventually, but for now, it's
-; just a stub.
+#version 0.0
 
-(Function Eval-In (expr env)
-    (Where
-        (Cond
-            ((Is-Data-Atom expr) expr)
-            (:true (Error (Quote expression-not-recognized))))))
+; This is an attempt at writing a self-interpreter. It's not yet very
+; well-organized, and there are no comments, either. Furthermore, it's
+; completely untested, so it undoubtedly contains at least a handful of
+; mistakes, but probably none that will be too difficult to fix.
+
+; As of this writing, this self-interpreter cannot even be interpreted in the
+; first place, because there is no implementation of the language which is
+; complete enough to run it.
+
+(Module
+
+((Eval-In env expr)
+    (Cond
+        ((Is-Data-Atom? expr)
+            expr)
+        ((Is-Atom? expr)
+            (Lookup-In env expr))
+        (:true
+            (Match expr
+                (('Cond . cases)
+                    (Do-Cond-In env cases))
+                (('If condition true-branch false-branch)
+                    (Do-If-In env condition true-branch false-branch))
+                (('If . _)
+                    (Error '(ill-formed If expression)))
+                (('Lambda params body)
+                    (Do-Lambda-In env params body))
+                (('Lambda . _)
+                    (Error '(ill-formed Lambda expression)))
+                (('LetrecLR definitions body)
+                    (Do-LetrecLR-In env definitions body))
+                (('LetrecLR . _)
+                    (Error '(ill-formed LetrecLR expression)))
+                (('Match inner-expr . cases)
+                    (Do-Match-In env inner-expr cases))
+                (('Match . _)
+                    (Error '(ill-formed Match expression)))
+                (('Module . definitions)
+                    (Do-Module-In env definitions))
+                (('Quote quoted-value)
+                    quoted-value)
+                (('Quote . _)
+                    (Error '(ill-formed Quote expression)))
+                ((func . args)
+                    (Do-Application-In env func args))
+                (()
+                    (Error '(tried to evaluate an empty list)))))))
+
+((Do-Cond-In env cases)
+    (Match cases
+        (((condition result) . remaining-cases)
+            (If (Eval-In env condition)
+                (Eval-In env result)
+                (Do-Cond-In env remaining-cases)))
+        (()
+            (Error '(none of the cases matched in Cond expression)))
+        (_
+            (Error '(ill-formed Cond expression)))))
+
+((Do-If-In env condition true-branch false-branch)
+    (If (Eval-In env condition)
+        (Eval-In env true-branch)
+        (Eval-In env false-branch)))
+
+((Do-Lambda-In env params body)
+    (:closure params body env))
+
+((Do-LetrecLR-In env definitions body)
+    (Eval-In (Dethunk-Environment (Make-Thunks env definitions)) body))
+
+((Do-Module-In env definitions)
+    (Environment-To-Bindings
+        (Dethunk-Environment (Make-Thunks env definitions))))
+
+((Do-Match-In env inner-expr cases)
+    (Do-Match-Cases env (Eval-In env inner-expr) cases))
+
+((Do-Match-Cases env value cases)
+    (Match cases
+        (((pattern action) . remaining-cases)
+            (Match (Try-Match-Against pattern value)
+                ((:success bindings)
+                    (Eval-In
+                        (Extend-Environment env
+                            (Bindings-To-Environment bindings))
+                        action))
+                ((:failure)
+                    Do-Match-Cases env value remaining-cases)))
+        (()
+            (Error '(none of the cases matched in Match expression)))
+        (_
+            (Error '(ill-formed Match expression)))))
+
+((Try-Match-Against pattern value)
+    (Cond
+        ((= pattern '_)
+            (:success '()))
+        ((Is-Data-Atom? pattern)
+            (If (= value pattern) (:success '()) (:failure)))
+        ((Is-Atom? pattern)
+            (:success (List pattern value)))
+        (:true
+            (Match pattern
+                (()
+                    (If (= value '()) (:success '()) (:failure)))
+                (('Quote . value-to-match)
+                    (If (= value value-to-match) (:success '()) (:failure)))
+                ((head-pattern . tail-pattern)
+                    (Match value
+                        ((value-head . value-tail)
+                            (Combine-Match-Results
+                                (Try-Match-Against head-pattern value-head)
+                                (Try-Match-Against tail-pattern value-tail)))
+                        (_
+                            (:failure))))))))
+
+((Combine-Match-Results result1 result2)
+    (Match result1
+        ((:failure)
+            (:failure))
+        ((:success bindings1)
+            (Match result2
+                ((:failure)
+                    (:failure))
+                ((:success bindings2
+                    (Match-Results-Combine-Bindings bindings1 bindings2)))))))
+
+((Match-Results-Combine-Bindings old-bindings new-bindings)
+    (Match new-bindings
+        (()
+            (Cons :success old-bindings))
+        (((name new-value) . remaining-new-bindings)
+            (Match (Lookup-In old-bindings name)
+                ((:not-found)
+                    (Match-Results-Combine-Bindings
+                        (Cons (List name new-value) old-bindings)
+                        remaining-new-bindings))
+                ((:found old-value)
+                    (If (= new-value old-value)
+                        (Match-Results-Combine-Bindings
+                            old-bindings
+                            remaining-new-bindings)
+                        (:failure)))))))
+
+((Do-Application-In env func args)
+    (Apply (Eval-In env func) (Map (Lambda (arg) (Eval-In env arg)) args)))
+
+((Apply func args)
+    (If (Is-Data-Atom? func)
+        (Cons func args)
+        (Match func
+            ((:primitive name)
+                (Apply-Primitive name args))
+            ((:closure params body closure-env)
+                (Eval-In
+                    (Make-Function-Environment closure-env params args)
+                    body)))))
+
+((Make-Function-Environment closure-env params args)
+    (Match (Try-Match-Against params args)
+        ((:failure)
+            (Error '(arguments did not match what this function was expecting)))
+        ((:success bindings)
+            (Extend-Environment
+                (Dethunk-Environment closure-env)
+                (Bindings-To-Environment bindings)))))
+
+((Apply-Primitive name args)
+    (Match (Cons name args)
+        (('Is-Data-Atom? value) (Is-Data-Atom? value))
+        (('Is-Atom? value) (Is-Atom? value))
+        (('Error message) (Error message))
+        (('Cons head tail) (Cons head tail))
+        (('List . list) list)
+        (('= x y) (= x y))))
+
+((Lookup-In env name)
+    (Match (env name)
+        ((((:value name value) . _) name)
+            value)
+        ((((:thunk name _) . _) name)
+            (Error (Concat '(the name)
+                           (List name)
+                           '(cannot be evaluated here))))
+        (((_ . env-remainder) name)
+            (Lookup-In env-remainder name))
+        ((() name)
+            (Error (Concat '(the name)
+                           (List name)
+                           '(does not exist in this environment))))))
+
+((Dethunk-Environment env)
+    (Dethunk-Environment-Loop env env))
+
+((Dethunk-Environment-Loop original-env env)
+    (Match env
+        (((:value name value) . env-remainder)
+            (Cons
+                (:value name value)
+                (Dethunk-Environment-Loop original-env env-remainder)))
+        (((name :thunk expression) . env-remainder)
+            (Cons
+                (:value name (Eval-In original-env expression))
+                (Dethunk-Environment-Loop original-env env-remainder)))
+        (()
+            '())))
+
+((Make-Thunks env definitions)
+    (Extend-Environment env (Map Definition-To-Thunk definitions)))
+
+((Definition-To-Thunk definition)
+    (Match definition)
+        ((name value)
+            (:thunk name value))
+        (((name . params) body)
+            (:thunk name (List 'Lambda params body))))
+
+((Extend-Environment old-env new-env)
+    (Match new-env
+        (((type name value) . new-env-remainder)
+            (Extend-Environment
+                (Cons
+                    (List type name value)
+                    (Remove-From-Environment old-env name))
+                new-env-remainder))
+        (()
+            old-env)))
+
+((Remove-From-Environment env name)
+    (Match (env name)
+        ((((type name value) . env-remainder) name)
+            (Remove-From-Environment env-remainder name))
+        (((entry . env-remainder) name)
+            (Cons entry (Remove-From-Environment env-remainder name)))
+        (()
+            '())))
+
+((Bindings-To-Environment bindings)
+    (Map (Lambda (binding) (Cons :value binding)) bindings))
+
+((Environment-To-Bindings env)
+    (Map (Lambda (:value . binding) binding) env))
+
+((Map func list)
+    (Match list
+        ((head . tail)
+            (Cons (func head) (Map func tail)))
+        (()
+            '()')))
+
+((Concat . lists)
+    (Concat-List lists))
+
+((Concat-List lists)
+    (Match lists
+        (((hhead . htail) . ttail)
+            (Cons hhead (Concat-List (Cons htail ttail))))
+        ((() . ttail)
+            (Concat-List ttail))
+        (()
+            '())))
+
+)
