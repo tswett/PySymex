@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
-from symex.symex import SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex, slist
 from symex.types import Binding, Environment, Function
 
 SFunction = Callable[[Sequence[Symex]], Symex]
@@ -28,7 +28,7 @@ class Primitive(Function):
     name: SAtom
 
     def to_symex(self) -> SList:
-        return SList([SAtom(':primitive'), self.name])
+        return slist([SAtom(':primitive'), self.name])
 
     @staticmethod
     def from_symex(symex: Symex) -> Primitive:
@@ -56,7 +56,7 @@ def add_primitive(name: str, value: Symex) -> None:
 def primitive_func(name: Optional[str] = None) -> Callable[[SFunction], SFunction]:
     def decorator(func: SFunction) -> SFunction:
         name_ = name or func.__name__
-        value = SList([SAtom(':primitive'), SAtom(name_)])
+        value = slist([SAtom(':primitive'), SAtom(name_)])
 
         primitive_dict[name_] = func
         add_primitive(name_, value)
@@ -87,7 +87,7 @@ def Equal(args: Sequence[Symex]) -> Symex:
 def Cons(args: Sequence[Symex]) -> Symex:
     match args:
         case (head, SList(tail)):
-            return SList((head,) + tail)
+            return slist((head,) + tail)
         case (_, _):
             raise ValueError("the Cons function got something that isn't a list")
         case _:
@@ -115,7 +115,7 @@ def Tail(args: Sequence[Symex]) -> Symex:
         case (arg,):
             match arg:
                 case SList((_, *tail)):
-                    return SList(tail)
+                    return slist(tail)
                 case SList(()):
                     raise ValueError("the Tail function got an empty list")
                 case _:
@@ -127,7 +127,7 @@ def Tail(args: Sequence[Symex]) -> Symex:
 
 @primitive_func()
 def List(args: Sequence[Symex]) -> Symex:
-    return SList(args)
+    return slist(args)
 
 @primitive_func()
 def Error(args: Sequence[Symex]) -> Symex:
@@ -141,4 +141,4 @@ def IsDataAtom(args: Sequence[Symex]) -> Symex:
     else:
         return SAtom(':false')
 
-add_primitive('Nil', SList([]))
+add_primitive('Nil', slist([]))

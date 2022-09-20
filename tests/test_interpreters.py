@@ -12,7 +12,7 @@
 
 import pytest
 
-from symex.symex import SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex, slist
 from symex.interpreters import Interpreter
 from symex.interpreters.machine import Machine
 from symex.interpreters.simple import Simple
@@ -29,7 +29,7 @@ class TestInterpreters:
         input = Symex.parse('(Tail (Quote (test)))')
         result = interpreter.eval(input)
 
-        assert result == SList([])
+        assert result == slist([])
 
     def test_can_evaluate_data_atom(self, interpreter: Interpreter) -> None:
         input = SAtom(':test')

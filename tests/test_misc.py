@@ -10,7 +10,7 @@
 #
 # Copyright 2022 by Tanner Swett.
 
-from symex.symex import SAtom, SList, Symex
+from symex.symex import SAtom, Symex, slist
 
 def test_can_parse_an_atom() -> None:
     result = Symex.parse('test')
@@ -18,4 +18,4 @@ def test_can_parse_an_atom() -> None:
 
 def test_can_parse_a_list() -> None:
     result = Symex.parse('(one two)')
-    assert result == SList([SAtom('one'), SAtom('two')])
+    assert result == slist([SAtom('one'), SAtom('two')])

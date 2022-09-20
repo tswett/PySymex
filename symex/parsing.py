@@ -12,7 +12,7 @@
 
 from typing import Optional
 
-from symex.symex import SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex, slist
 
 class SymexParser():
     def __init__(self, text: str):
@@ -81,7 +81,7 @@ class SymexParser():
 
         if self.next_char == ')':
             self.next_index += 1
-            return SList(result_list)
+            return slist(result_list)
         else:
             raise ValueError('failed to find a closing parenthesis')
 

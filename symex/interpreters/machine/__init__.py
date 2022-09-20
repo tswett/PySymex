@@ -18,7 +18,7 @@ from symex.interpreters import Interpreter
 from symex.interpreters.machine.builtins import builtins
 from symex.interpreters.machine.frames import FrameResult, StackFrame
 from symex.primitives import Primitive
-from symex.symex import SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex, slist
 from symex.types import Closure, Environment, Function
 
 class Evaluate(StackFrame):
@@ -32,7 +32,7 @@ class Evaluate(StackFrame):
                 value = atom_value(atom, self.env)
                 return FrameResult(result_expr=value)
             case SList((SAtom(name), *arg_exprs)) if name in builtins:
-                return builtins[name](SList(arg_exprs), self.env)
+                return builtins[name](slist(arg_exprs), self.env)
             case SList() as list:
                 new_frames = [EvaluateForCall(list, [], self.env)]
                 return FrameResult(new_frames=new_frames)

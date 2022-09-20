@@ -39,7 +39,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
-from symex.symex import SAtom, SList, Symex
+from symex.symex import SAtom, SList, Symex, slist
 
 @dataclass(frozen=True)
 class Environment():
@@ -61,7 +61,7 @@ class Environment():
         raise ValueError(f'the name "{name.text}" is not in this environment')
 
     def to_symex(self) -> SList:
-        return SList([binding.to_symex() for binding in self.bindings])
+        return slist([binding.to_symex() for binding in self.bindings])
 
     @staticmethod
     def from_symex(symex: Symex) -> Environment:
@@ -83,7 +83,7 @@ class Binding():
     value: Symex
 
     def to_symex(self) -> SList:
-        return SList([self.name, self.value])
+        return slist([self.name, self.value])
 
     @staticmethod
     def from_symex(symex: Symex) -> Binding:
@@ -120,13 +120,13 @@ class Closure(Function):
 
     def to_symex(self) -> SList:
         if self.name is not None:
-            name_list = SList([self.name])
+            name_list = slist([self.name])
         else:
-            name_list = SList([])
+            name_list = slist([])
 
-        return SList([SAtom(':closure'),
+        return slist([SAtom(':closure'),
                       name_list,
-                      SList(list(self.params)),
+                      slist(self.params),
                       self.body,
                       self.env.to_symex()])
 

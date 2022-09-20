@@ -21,3 +21,7 @@ PySymex is fully type-annotated and should typecheck successfully with mypy:
 You can also run the unit tests by simply running
 
     pytest
+
+If you have pdoc installed, then you can view the documentation by running
+
+    pdoc symex
