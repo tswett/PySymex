@@ -79,6 +79,10 @@
 ((Do-Lambda-In env params body)
     (:closure params body env))
 
+; TODO: This is actually an implementation of Letrec, not LetrecLR. LetrecLR
+; allows definitions to immediately using preceding definitions, but prohibits
+; them from immediately using themselves or later definitions. Letrec prohibits
+; immediately using any definition, even a preceding one.
 ((Do-LetrecLR-In env definitions body)
     (Eval-In (Dethunk-Environment (Make-Thunks env definitions)) body))
 
@@ -99,7 +103,7 @@
                             (Bindings-To-Environment bindings))
                         action))
                 ((:failure)
-                    Do-Match-Cases env value remaining-cases)))
+                    (Do-Match-Cases env value remaining-cases))))
         (()
             (Error '(none of the cases matched in Match expression)))
         (_
@@ -260,7 +264,7 @@
         ((head . tail)
             (Cons (func head) (Map func tail)))
         (()
-            '()')))
+            '())))
 
 ((Concat . lists)
     (Concat-List lists))
